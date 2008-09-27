@@ -1,0 +1,1147 @@
+diff -ruN ibpp2-2.5.2.2.orig/autogen.sh ibpp2-2.5.2.2/autogen.sh
+--- ibpp2-2.5.2.2.orig/autogen.sh	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/autogen.sh	2006-07-18 08:37:34.973644464 +0200
+@@ -0,0 +1,16 @@
++#!/bin/sh
++#
++echo "Building configure & friends..."
++aclocal -I .
++libtoolize --copy --force --automake
++autoheader
++autoconf
++automake -a -c
++
++if test ! -f configure || test ! -f ltmain.sh || test ! -f Makefile.in; then
++  cat<<EOT
++** Unable to generate all required files!
++** you'll need autoconf, automake, libtool, autoheader and aclocal installed
++EOT
++  exit 1
++fi
+diff -ruN ibpp2-2.5.2.2.orig/configure.in ibpp2-2.5.2.2/configure.in
+--- ibpp2-2.5.2.2.orig/configure.in	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/configure.in	2006-07-18 08:21:30.110325984 +0200
+@@ -0,0 +1,10 @@
++AC_INIT(configure.in)
++
++AM_CONFIG_HEADER(config.h)
++AM_INIT_AUTOMAKE(ibpp, 2.5.2.2)
++
++AC_LANG_CPLUSPLUS
++AC_PROG_CXX
++AM_PROG_LIBTOOL
++
++AC_OUTPUT(Makefile core/Makefile)
+diff -ruN ibpp2-2.5.2.2.orig/core/Makefile.am ibpp2-2.5.2.2/core/Makefile.am
+--- ibpp2-2.5.2.2.orig/core/Makefile.am	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/core/Makefile.am	2006-07-18 08:21:30.111325832 +0200
+@@ -0,0 +1,12 @@
++libibpp_la_LIBADD = -lfbclient
++
++INCLUDES = $(all_includes) -I./fbheaders
++METASOURCES = AUTO
++lib_LTLIBRARIES = libibpp.la
++libibpp_la_SOURCES = array.cpp blob.cpp database.cpp date.cpp dbkey.cpp _dpb.cpp \
++    events.cpp exception.cpp ibase.h iberror.h _ibpp.cpp ibpp.h _ibpp.h _ibs.cpp \
++    _rb.cpp row.cpp service.cpp _spb.cpp statement.cpp time.cpp _tpb.cpp transaction.cpp \
++    user.cpp
++include_HEADERS = ibpp.h
++libibpp_la_LDFLAGS = -version-info 2:0:0 -no-undefined
++AM_CXXFLAGS = -DIBPP_GCC -DIBPP_LINUX
+diff -ruN ibpp2-2.5.2.2.orig/debian/compat ibpp2-2.5.2.2/debian/compat
+--- ibpp2-2.5.2.2.orig/debian/compat	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/compat	2006-07-18 08:21:30.112325680 +0200
+@@ -0,0 +1 @@
++5
+diff -ruN ibpp2-2.5.2.2.orig/debian/control ibpp2-2.5.2.2/debian/control
+--- ibpp2-2.5.2.2.orig/debian/control	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/control	2006-07-18 08:26:27.426127112 +0200
+@@ -0,0 +1,46 @@
++Source: ibpp2
++Priority: optional
++Maintainer: Pavel Stingl <stingp1@seznam.cz>
++Build-Depends: debhelper (>= 5), autotools-dev
++Standards-Version: 3.7.2
++Section: libs
++
++Package: ibpp2-dev
++Section: libdevel
++Architecture: any
++Depends: ibpp2 (= ${Source-Version}), firebird2-dev
++Description: C++ library for access to Firebird RDBMS development files
++ IBPP, where the ‘PP’ stands for ‘++’, is a C++ client interface 
++ for Firebird versions 1.0, 1.5 and further. It also works with 
++ InterBase® 6.0, though it is expected it might only support Firebird 
++ in the future. It is a class library, free of any specific development 
++ tool dependancies. It is not tied to any ‘visual’ or ‘RAD’ tool. 
++ It was indeed developed to add Firebird access in any C++ application. 
++ Those applications using IBPP can be non-visual (CORBA/COM objects, 
++ other libraries of classes and functions, procedural ‘legacy’ code, 
++ for instance). But it can of course also be used in visual or RAD environments. 
++ IBPP is indeed purely a dynamic SQL interface to Firebird. In some easy to use 
++ C++ classes, you will find nearly all what is needed to access a Firebird 
++ database, and manipulate the data. IBPP also offers access to most 
++ of the administrations tasks: creating a database, modifying its structure, 
++ performing online backups, administering user accounts on the server and so on. 
++
++Package: ibpp2
++Section: libs
++Architecture: any
++Depends: libfirebird2-super | libfirebird2-classic, ${shlibs:Depends}, ${misc:Depends}
++Description: C++ library for access to Firebird RDBMS
++ IBPP, where the ‘PP’ stands for ‘++’, is a C++ client interface 
++ for Firebird versions 1.0, 1.5 and further. It also works with 
++ InterBase® 6.0, though it is expected it might only support Firebird 
++ in the future. It is a class library, free of any specific development 
++ tool dependancies. It is not tied to any ‘visual’ or ‘RAD’ tool. 
++ It was indeed developed to add Firebird access in any C++ application. 
++ Those applications using IBPP can be non-visual (CORBA/COM objects, 
++ other libraries of classes and functions, procedural ‘legacy’ code, 
++ for instance). But it can of course also be used in visual or RAD environments. 
++ IBPP is indeed purely a dynamic SQL interface to Firebird. In some easy to use 
++ C++ classes, you will find nearly all what is needed to access a Firebird 
++ database, and manipulate the data. IBPP also offers access to most 
++ of the administrations tasks: creating a database, modifying its structure, 
++ performing online backups, administering user accounts on the server and so on. 
+diff -ruN ibpp2-2.5.2.2.orig/debian/copyright ibpp2-2.5.2.2/debian/copyright
+--- ibpp2-2.5.2.2.orig/debian/copyright	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/copyright	2006-07-18 08:32:44.240842568 +0200
+@@ -0,0 +1,39 @@
++This package was debianized by Pavel Stingl <stingp1@seznam.cz> on
++Mon, 17 Jul 2006 13:00:15 +0200.
++
++It was downloaded from http://www.ibpp.org
++
++Upstream Author: IBPP Team (http://www.ibpp.org)
++
++Copyright: (C) Copyright 2000-2006 T.I.P. Group S.A. and the IBPP Team (www.ibpp.org)
++
++License:
++
++IBPP License v1.1
++-----------------
++
++(C) Copyright 2000-2006 T.I.P. Group S.A. and the IBPP Team (www.ibpp.org)
++
++Permission is hereby granted, free of charge, to any person or organization
++("You") obtaining a copy of this software and associated documentation files
++covered by this license (the "Software") to use the Software as part of another
++work; to modify it for that purpose; to publish or distribute it, modified or
++not, for that same purpose; to permit persons to whom the other work using the
++Software is furnished to do so; subject to the following conditions: the above
++copyright notice and this complete and unmodified permission notice shall be
++included in all copies or substantial portions of the Software; You will not
++misrepresent modified versions of the Software as being the original.
++
++The Software is provided "as is", without warranty of any kind, express or
++implied, including but not limited to the warranties of merchantability,
++fitness for a particular purpose and noninfringement.  In no event shall
++the authors or copyright holders be liable for any claim, damages or other
++liability, whether in an action of contract, tort or otherwise, arising from,
++out of or in connection with the software or the use of other dealings in
++the Software.
++
++
++The Debian packaging is (C) 2006, Pavel Stingl <stingp1@seznam.cz> and
++is licensed under the GPL, see `/usr/share/common-licenses/GPL'.
++
++
+diff -ruN ibpp2-2.5.2.2.orig/debian/dirs ibpp2-2.5.2.2/debian/dirs
+--- ibpp2-2.5.2.2.orig/debian/dirs	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/dirs	2006-07-18 08:21:30.116325072 +0200
+@@ -0,0 +1,2 @@
++usr/bin
++usr/sbin
+diff -ruN ibpp2-2.5.2.2.orig/debian/docs ibpp2-2.5.2.2/debian/docs
+--- ibpp2-2.5.2.2.orig/debian/docs	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/docs	2006-07-18 08:21:30.117324920 +0200
+@@ -0,0 +1,6 @@
++howtobuild.txt
++changelog.txt
++license.txt
++releasenotes.txt
++todo.txt
++todo.txt
+diff -ruN ibpp2-2.5.2.2.orig/debian/emacsen-install.ex ibpp2-2.5.2.2/debian/emacsen-install.ex
+--- ibpp2-2.5.2.2.orig/debian/emacsen-install.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/emacsen-install.ex	2006-07-18 08:21:30.118324768 +0200
+@@ -0,0 +1,45 @@
++#! /bin/sh -e
++# /usr/lib/emacsen-common/packages/install/ibpp2
++
++# Written by Jim Van Zandt <jrv@debian.org>, borrowing heavily
++# from the install scripts for gettext by Santiago Vila
++# <sanvila@ctv.es> and octave by Dirk Eddelbuettel <edd@debian.org>.
++
++FLAVOR=$1
++PACKAGE=ibpp2
++
++if [ ${FLAVOR} = emacs ]; then exit 0; fi
++
++echo install/${PACKAGE}: Handling install for emacsen flavor ${FLAVOR}
++
++#FLAVORTEST=`echo $FLAVOR | cut -c-6`
++#if [ ${FLAVORTEST} = xemacs ] ; then
++#    SITEFLAG="-no-site-file"
++#else
++#    SITEFLAG="--no-site-file"
++#fi
++FLAGS="${SITEFLAG} -q -batch -l path.el -f batch-byte-compile"
++
++ELDIR=/usr/share/emacs/site-lisp/${PACKAGE}
++ELCDIR=/usr/share/${FLAVOR}/site-lisp/${PACKAGE}
++
++# Install-info-altdir does not actually exist. 
++# Maybe somebody will write it.
++if test -x /usr/sbin/install-info-altdir; then
++    echo install/${PACKAGE}: install Info links for ${FLAVOR}
++    install-info-altdir --quiet --section "" "" --dirname=${FLAVOR} /usr/info/${PACKAGE}.info.gz
++fi
++
++install -m 755 -d ${ELCDIR}
++cd ${ELDIR}
++FILES=`echo *.el`
++cp ${FILES} ${ELCDIR}
++cd ${ELCDIR}
++
++cat << EOF > path.el
++(setq load-path (cons "." load-path) byte-compile-warnings nil)
++EOF
++${FLAVOR} ${FLAGS} ${FILES}
++rm -f *.el path.el
++
++exit 0
+diff -ruN ibpp2-2.5.2.2.orig/debian/emacsen-remove.ex ibpp2-2.5.2.2/debian/emacsen-remove.ex
+--- ibpp2-2.5.2.2.orig/debian/emacsen-remove.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/emacsen-remove.ex	2006-07-18 08:21:30.118324768 +0200
+@@ -0,0 +1,15 @@
++#!/bin/sh -e
++# /usr/lib/emacsen-common/packages/remove/ibpp2
++
++FLAVOR=$1
++PACKAGE=ibpp2
++
++if [ ${FLAVOR} != emacs ]; then
++    if test -x /usr/sbin/install-info-altdir; then
++        echo remove/${PACKAGE}: removing Info links for ${FLAVOR}
++        install-info-altdir --quiet --remove --dirname=${FLAVOR} /usr/info/ibpp2.info.gz
++    fi
++
++    echo remove/${PACKAGE}: purging byte-compiled files for ${FLAVOR}
++    rm -rf /usr/share/${FLAVOR}/site-lisp/${PACKAGE}
++fi
+diff -ruN ibpp2-2.5.2.2.orig/debian/emacsen-startup.ex ibpp2-2.5.2.2/debian/emacsen-startup.ex
+--- ibpp2-2.5.2.2.orig/debian/emacsen-startup.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/emacsen-startup.ex	2006-07-18 08:21:30.119324616 +0200
+@@ -0,0 +1,25 @@
++;; -*-emacs-lisp-*-
++;;
++;; Emacs startup file, e.g.  /etc/emacs/site-start.d/50ibpp2.el
++;; for the Debian ibpp2 package
++;;
++;; Originally contributed by Nils Naumann <naumann@unileoben.ac.at>
++;; Modified by Dirk Eddelbuettel <edd@debian.org>
++;; Adapted for dh-make by Jim Van Zandt <jrv@debian.org>
++
++;; The ibpp2 package follows the Debian/GNU Linux 'emacsen' policy and
++;; byte-compiles its elisp files for each 'emacs flavor' (emacs19,
++;; xemacs19, emacs20, xemacs20...).  The compiled code is then
++;; installed in a subdirectory of the respective site-lisp directory.
++;; We have to add this to the load-path:
++(let ((package-dir (concat "/usr/share/"
++                           (symbol-name flavor)
++                           "/site-lisp/ibpp2")))
++;; If package-dir does not exist, the ibpp2 package must have
++;; removed but not purged, and we should skip the setup.
++  (when (file-directory-p package-dir)
++        (setq load-path (cons package-dir load-path))
++       (autoload 'ibpp2-mode "ibpp2-mode"
++         "Major mode for editing ibpp2 files." t)
++       (add-to-list 'auto-mode-alist '("\\.ibpp2$" . ibpp2-mode))))
++
+diff -ruN ibpp2-2.5.2.2.orig/debian/files ibpp2-2.5.2.2/debian/files
+--- ibpp2-2.5.2.2.orig/debian/files	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/files	2006-07-18 08:21:30.120324464 +0200
+@@ -0,0 +1,2 @@
++ibpp2-dev_2.5.2.2-1_i386.deb libdevel optional
++ibpp2_2.5.2.2-1_i386.deb libs optional
+diff -ruN ibpp2-2.5.2.2.orig/debian/changelog ibpp2-2.5.2.2/debian/changelog
+--- ibpp2-2.5.2.2.orig/debian/changelog	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/changelog	2006-07-18 08:22:37.219123896 +0200
+@@ -0,0 +1,6 @@
++ibpp2 (2.5.2.2-1) unstable; urgency=low
++
++  * Initial release
++
++ -- Pavel Stingl <stingp1@seznam.cz>  Mon, 17 Jul 2006 13:00:15 +0200
++
+diff -ruN ibpp2-2.5.2.2.orig/debian/ibpp2-default.ex ibpp2-2.5.2.2/debian/ibpp2-default.ex
+--- ibpp2-2.5.2.2.orig/debian/ibpp2-default.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/ibpp2-default.ex	2006-07-18 08:21:30.122324160 +0200
+@@ -0,0 +1,10 @@
++# Defaults for ibpp2 initscript
++# sourced by /etc/init.d/ibpp2
++# installed at /etc/default/ibpp2 by the maintainer scripts
++
++#
++# This is a POSIX shell fragment
++#
++
++# Additional options that are passed to the Daemon.
++DAEMON_OPTS=""
+diff -ruN ibpp2-2.5.2.2.orig/debian/ibpp2-dev.dirs ibpp2-2.5.2.2/debian/ibpp2-dev.dirs
+--- ibpp2-2.5.2.2.orig/debian/ibpp2-dev.dirs	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/ibpp2-dev.dirs	2006-07-18 08:21:30.123324008 +0200
+@@ -0,0 +1,2 @@
++usr/lib
++usr/include
+diff -ruN ibpp2-2.5.2.2.orig/debian/ibpp2-dev.install ibpp2-2.5.2.2/debian/ibpp2-dev.install
+--- ibpp2-2.5.2.2.orig/debian/ibpp2-dev.install	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/ibpp2-dev.install	2006-07-18 08:21:30.124323856 +0200
+@@ -0,0 +1,3 @@
++debian/tmp/usr/include/*
++debian/tmp/usr/lib/lib*.a
++debian/tmp/usr/lib/*.la
+diff -ruN ibpp2-2.5.2.2.orig/debian/ibpp2.dirs ibpp2-2.5.2.2/debian/ibpp2.dirs
+--- ibpp2-2.5.2.2.orig/debian/ibpp2.dirs	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/ibpp2.dirs	2006-07-18 08:21:30.125323704 +0200
+@@ -0,0 +1 @@
++usr/lib
+diff -ruN ibpp2-2.5.2.2.orig/debian/ibpp2.doc-base.EX ibpp2-2.5.2.2/debian/ibpp2.doc-base.EX
+--- ibpp2-2.5.2.2.orig/debian/ibpp2.doc-base.EX	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/ibpp2.doc-base.EX	2006-07-18 08:21:30.126323552 +0200
+@@ -0,0 +1,22 @@
++Document: ibpp2
++Title: Debian ibpp2 Manual
++Author: <insert document author here>
++Abstract: This manual describes what ibpp2 is
++ and how it can be used to
++ manage online manuals on Debian systems.
++Section: unknown
++
++Format: debiandoc-sgml
++Files: /usr/share/doc/ibpp2/ibpp2.sgml.gz
++
++Format: postscript
++Files: /usr/share/doc/ibpp2/ibpp2.ps.gz
++
++Format: text
++Files: /usr/share/doc/ibpp2/ibpp2.text.gz
++
++Format: HTML
++Index: /usr/share/doc/ibpp2/html/index.html
++Files: /usr/share/doc/ibpp2/html/*.html
++
++  
+diff -ruN ibpp2-2.5.2.2.orig/debian/ibpp2.install ibpp2-2.5.2.2/debian/ibpp2.install
+--- ibpp2-2.5.2.2.orig/debian/ibpp2.install	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/ibpp2.install	2006-07-18 08:21:30.127323400 +0200
+@@ -0,0 +1,2 @@
++debian/tmp/usr/lib/lib*.so
++debian/tmp/usr/lib/lib*.so.*
+diff -ruN ibpp2-2.5.2.2.orig/debian/ibpp2.substvars ibpp2-2.5.2.2/debian/ibpp2.substvars
+--- ibpp2-2.5.2.2.orig/debian/ibpp2.substvars	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/ibpp2.substvars	2006-07-18 08:21:30.128323248 +0200
+@@ -0,0 +1 @@
++shlibs:Depends=libc6 (>= 2.3.6-6), libfbclient1, libgcc1 (>= 1:4.1.0), libstdc++6 (>= 4.1.0)
+diff -ruN ibpp2-2.5.2.2.orig/debian/init.d.ex ibpp2-2.5.2.2/debian/init.d.ex
+--- ibpp2-2.5.2.2.orig/debian/init.d.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/init.d.ex	2006-07-18 08:21:30.129323096 +0200
+@@ -0,0 +1,74 @@
++#! /bin/sh
++#
++# skeleton	example file to build /etc/init.d/ scripts.
++#		This file should be used to construct scripts for /etc/init.d.
++#
++#		Written by Miquel van Smoorenburg <miquels@cistron.nl>.
++#		Modified for Debian 
++#		by Ian Murdock <imurdock@gnu.ai.mit.edu>.
++#
++# Version:	@(#)skeleton  1.9  26-Feb-2001  miquels@cistron.nl
++#
++
++PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
++DAEMON=/usr/sbin/ibpp2
++NAME=ibpp2
++DESC=ibpp2
++
++test -x $DAEMON || exit 0
++
++# Include ibpp2 defaults if available
++if [ -f /etc/default/ibpp2 ] ; then
++	. /etc/default/ibpp2
++fi
++
++set -e
++
++case "$1" in
++  start)
++	echo -n "Starting $DESC: "
++	start-stop-daemon --start --quiet --pidfile /var/run/$NAME.pid \
++		--exec $DAEMON -- $DAEMON_OPTS
++	echo "$NAME."
++	;;
++  stop)
++	echo -n "Stopping $DESC: "
++	start-stop-daemon --stop --quiet --pidfile /var/run/$NAME.pid \
++		--exec $DAEMON
++	echo "$NAME."
++	;;
++  #reload)
++	#
++	#	If the daemon can reload its config files on the fly
++	#	for example by sending it SIGHUP, do it here.
++	#
++	#	If the daemon responds to changes in its config file
++	#	directly anyway, make this a do-nothing entry.
++	#
++	# echo "Reloading $DESC configuration files."
++	# start-stop-daemon --stop --signal 1 --quiet --pidfile \
++	#	/var/run/$NAME.pid --exec $DAEMON
++  #;;
++  restart|force-reload)
++	#
++	#	If the "reload" option is implemented, move the "force-reload"
++	#	option to the "reload" entry above. If not, "force-reload" is
++	#	just the same as "restart".
++	#
++	echo -n "Restarting $DESC: "
++	start-stop-daemon --stop --quiet --pidfile \
++		/var/run/$NAME.pid --exec $DAEMON
++	sleep 1
++	start-stop-daemon --start --quiet --pidfile \
++		/var/run/$NAME.pid --exec $DAEMON -- $DAEMON_OPTS
++	echo "$NAME."
++	;;
++  *)
++	N=/etc/init.d/$NAME
++	# echo "Usage: $N {start|stop|restart|reload|force-reload}" >&2
++	echo "Usage: $N {start|stop|restart|force-reload}" >&2
++	exit 1
++	;;
++esac
++
++exit 0
+diff -ruN ibpp2-2.5.2.2.orig/debian/manpage.1.ex ibpp2-2.5.2.2/debian/manpage.1.ex
+--- ibpp2-2.5.2.2.orig/debian/manpage.1.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/manpage.1.ex	2006-07-18 08:21:30.130322944 +0200
+@@ -0,0 +1,59 @@
++.\"                                      Hey, EMACS: -*- nroff -*-
++.\" First parameter, NAME, should be all caps
++.\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
++.\" other parameters are allowed: see man(7), man(1)
++.TH IBPP2 SECTION "červenec 17, 2006"
++.\" Please adjust this date whenever revising the manpage.
++.\"
++.\" Some roff macros, for reference:
++.\" .nh        disable hyphenation
++.\" .hy        enable hyphenation
++.\" .ad l      left justify
++.\" .ad b      justify to both left and right margins
++.\" .nf        disable filling
++.\" .fi        enable filling
++.\" .br        insert line break
++.\" .sp <n>    insert n+1 empty lines
++.\" for manpage-specific macros, see man(7)
++.SH NAME
++ibpp2 \- program to do something
++.SH SYNOPSIS
++.B ibpp2
++.RI [ options ] " files" ...
++.br
++.B bar
++.RI [ options ] " files" ...
++.SH DESCRIPTION
++This manual page documents briefly the
++.B ibpp2
++and
++.B bar
++commands.
++.PP
++.\" TeX users may be more comfortable with the \fB<whatever>\fP and
++.\" \fI<whatever>\fP escape sequences to invode bold face and italics, 
++.\" respectively.
++\fBibpp2\fP is a program that...
++.SH OPTIONS
++These programs follow the usual GNU command line syntax, with long
++options starting with two dashes (`-').
++A summary of options is included below.
++For a complete description, see the Info files.
++.TP
++.B \-h, \-\-help
++Show summary of options.
++.TP
++.B \-v, \-\-version
++Show version of program.
++.SH SEE ALSO
++.BR bar (1),
++.BR baz (1).
++.br
++The programs are documented fully by
++.IR "The Rise and Fall of a Fooish Bar" ,
++available via the Info system.
++.SH AUTHOR
++ibpp2 was written by <upstream author>.
++.PP
++This manual page was written by Pavel Stingl <payoch@orion.warthog.cz>,
++for the Debian project (but may be used by others).
+diff -ruN ibpp2-2.5.2.2.orig/debian/manpage.sgml.ex ibpp2-2.5.2.2/debian/manpage.sgml.ex
+--- ibpp2-2.5.2.2.orig/debian/manpage.sgml.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/manpage.sgml.ex	2006-07-18 08:21:30.131322792 +0200
+@@ -0,0 +1,156 @@
++<!doctype refentry PUBLIC "-//OASIS//DTD DocBook V4.1//EN" [
++
++<!-- Process this file with docbook-to-man to generate an nroff manual
++     page: `docbook-to-man manpage.sgml > manpage.1'.  You may view
++     the manual page with: `docbook-to-man manpage.sgml | nroff -man |
++     less'.  A typical entry in a Makefile or Makefile.am is:
++
++manpage.1: manpage.sgml
++	docbook-to-man $< > $@
++
++    
++	The docbook-to-man binary is found in the docbook-to-man package.
++	Please remember that if you create the nroff version in one of the
++	debian/rules file targets (such as build), you will need to include
++	docbook-to-man in your Build-Depends control field.
++
++  -->
++
++  <!-- Fill in your name for FIRSTNAME and SURNAME. -->
++  <!ENTITY dhfirstname "<firstname>FIRSTNAME</firstname>">
++  <!ENTITY dhsurname   "<surname>SURNAME</surname>">
++  <!-- Please adjust the date whenever revising the manpage. -->
++  <!ENTITY dhdate      "<date>červenec 17, 2006</date>">
++  <!-- SECTION should be 1-8, maybe w/ subsection other parameters are
++       allowed: see man(7), man(1). -->
++  <!ENTITY dhsection   "<manvolnum>SECTION</manvolnum>">
++  <!ENTITY dhemail     "<email>payoch@orion.warthog.cz</email>">
++  <!ENTITY dhusername  "Pavel Stingl">
++  <!ENTITY dhucpackage "<refentrytitle>IBPP2</refentrytitle>">
++  <!ENTITY dhpackage   "ibpp2">
++
++  <!ENTITY debian      "<productname>Debian</productname>">
++  <!ENTITY gnu         "<acronym>GNU</acronym>">
++  <!ENTITY gpl         "&gnu; <acronym>GPL</acronym>">
++]>
++
++<refentry>
++  <refentryinfo>
++    <address>
++      &dhemail;
++    </address>
++    <author>
++      &dhfirstname;
++      &dhsurname;
++    </author>
++    <copyright>
++      <year>2003</year>
++      <holder>&dhusername;</holder>
++    </copyright>
++    &dhdate;
++  </refentryinfo>
++  <refmeta>
++    &dhucpackage;
++
++    &dhsection;
++  </refmeta>
++  <refnamediv>
++    <refname>&dhpackage;</refname>
++
++    <refpurpose>program to do something</refpurpose>
++  </refnamediv>
++  <refsynopsisdiv>
++    <cmdsynopsis>
++      <command>&dhpackage;</command>
++
++      <arg><option>-e <replaceable>this</replaceable></option></arg>
++
++      <arg><option>--example <replaceable>that</replaceable></option></arg>
++    </cmdsynopsis>
++  </refsynopsisdiv>
++  <refsect1>
++    <title>DESCRIPTION</title>
++
++    <para>This manual page documents briefly the
++      <command>&dhpackage;</command> and <command>bar</command>
++      commands.</para>
++
++    <para>This manual page was written for the &debian; distribution
++      because the original program does not have a manual page.
++      Instead, it has documentation in the &gnu;
++      <application>Info</application> format; see below.</para>
++
++    <para><command>&dhpackage;</command> is a program that...</para>
++
++  </refsect1>
++  <refsect1>
++    <title>OPTIONS</title>
++
++    <para>These programs follow the usual &gnu; command line syntax,
++      with long options starting with two dashes (`-').  A summary of
++      options is included below.  For a complete description, see the
++      <application>Info</application> files.</para>
++
++    <variablelist>
++      <varlistentry>
++        <term><option>-h</option>
++          <option>--help</option>
++        </term>
++        <listitem>
++          <para>Show summary of options.</para>
++        </listitem>
++      </varlistentry>
++      <varlistentry>
++        <term><option>-v</option>
++          <option>--version</option>
++        </term>
++        <listitem>
++          <para>Show version of program.</para>
++        </listitem>
++      </varlistentry>
++    </variablelist>
++  </refsect1>
++  <refsect1>
++    <title>SEE ALSO</title>
++
++    <para>bar (1), baz (1).</para>
++
++    <para>The programs are documented fully by <citetitle>The Rise and
++      Fall of a Fooish Bar</citetitle> available via the
++      <application>Info</application> system.</para>
++  </refsect1>
++  <refsect1>
++    <title>AUTHOR</title>
++
++    <para>This manual page was written by &dhusername; &dhemail; for
++      the &debian; system (but may be used by others).  Permission is
++      granted to copy, distribute and/or modify this document under
++      the terms of the &gnu; General Public License, Version 2 any 
++	  later version published by the Free Software Foundation.
++    </para>
++	<para>
++	  On Debian systems, the complete text of the GNU General Public
++	  License can be found in /usr/share/common-licenses/GPL.
++	</para>
++
++  </refsect1>
++</refentry>
++
++<!-- Keep this comment at the end of the file
++Local variables:
++mode: sgml
++sgml-omittag:t
++sgml-shorttag:t
++sgml-minimize-attributes:nil
++sgml-always-quote-attributes:t
++sgml-indent-step:2
++sgml-indent-data:t
++sgml-parent-document:nil
++sgml-default-dtd-file:nil
++sgml-exposed-tags:nil
++sgml-local-catalogs:nil
++sgml-local-ecat-files:nil
++End:
++-->
++
++
+diff -ruN ibpp2-2.5.2.2.orig/debian/manpage.xml.ex ibpp2-2.5.2.2/debian/manpage.xml.ex
+--- ibpp2-2.5.2.2.orig/debian/manpage.xml.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/manpage.xml.ex	2006-07-18 08:21:30.133322488 +0200
+@@ -0,0 +1,148 @@
++<?xml version='1.0' encoding='ISO-8859-1'?>
++<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
++"http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd" [
++
++<!--
++
++Process this file with an XSLT processor: `xsltproc \
++-''-nonet /usr/share/sgml/docbook/stylesheet/xsl/nwalsh/\
++manpages/docbook.xsl manpage.dbk'.  A manual page
++<package>.<section> will be generated.  You may view the
++manual page with: nroff -man <package>.<section> | less'.  A
++typical entry in a Makefile or Makefile.am is:
++
++DB2MAN=/usr/share/sgml/docbook/stylesheet/xsl/nwalsh/\
++manpages/docbook.xsl
++XP=xsltproc -''-nonet
++
++manpage.1: manpage.dbk
++        $(XP) $(DB2MAN) $<
++    
++The xsltproc binary is found in the xsltproc package.  The
++XSL files are in docbook-xsl.  Please remember that if you
++create the nroff version in one of the debian/rules file
++targets (such as build), you will need to include xsltproc
++and docbook-xsl in your Build-Depends control field.
++
++-->
++
++  <!-- Fill in your name for FIRSTNAME and SURNAME. -->
++  <!ENTITY dhfirstname "<firstname>FIRSTNAME</firstname>">
++  <!ENTITY dhsurname   "<surname>SURNAME</surname>">
++  <!-- Please adjust the date whenever revising the manpage. -->
++  <!ENTITY dhdate      "<date>červenec 17, 2006</date>">
++  <!-- SECTION should be 1-8, maybe w/ subsection other parameters are
++       allowed: see man(7), man(1). -->
++  <!ENTITY dhsection   "<manvolnum>SECTION</manvolnum>">
++  <!ENTITY dhemail     "<email>payoch@orion.warthog.cz</email>">
++  <!ENTITY dhusername  "Pavel Stingl">
++  <!ENTITY dhucpackage "<refentrytitle>IBPP2</refentrytitle>">
++  <!ENTITY dhpackage   "ibpp2">
++
++  <!ENTITY debian      "<productname>Debian</productname>">
++  <!ENTITY gnu         "<acronym>GNU</acronym>">
++  <!ENTITY gpl         "&gnu; <acronym>GPL</acronym>">
++]>
++
++<refentry>
++  <refentryinfo>
++    <address>
++      &dhemail;
++    </address>
++    <author>
++      &dhfirstname;
++      &dhsurname;
++    </author>
++    <copyright>
++      <year>2003</year>
++      <holder>&dhusername;</holder>
++    </copyright>
++    &dhdate;
++  </refentryinfo>
++  <refmeta>
++    &dhucpackage;
++
++    &dhsection;
++  </refmeta>
++  <refnamediv>
++    <refname>&dhpackage;</refname>
++
++    <refpurpose>program to do something</refpurpose>
++  </refnamediv>
++  <refsynopsisdiv>
++    <cmdsynopsis>
++      <command>&dhpackage;</command>
++
++      <arg><option>-e <replaceable>this</replaceable></option></arg>
++
++      <arg><option>--example <replaceable>that</replaceable></option></arg>
++    </cmdsynopsis>
++  </refsynopsisdiv>
++  <refsect1>
++    <title>DESCRIPTION</title>
++
++    <para>This manual page documents briefly the
++      <command>&dhpackage;</command> and <command>bar</command>
++      commands.</para>
++
++    <para>This manual page was written for the &debian; distribution
++      because the original program does not have a manual page.
++      Instead, it has documentation in the &gnu;
++      <application>Info</application> format; see below.</para>
++
++    <para><command>&dhpackage;</command> is a program that...</para>
++
++  </refsect1>
++  <refsect1>
++    <title>OPTIONS</title>
++
++    <para>These programs follow the usual &gnu; command line syntax,
++      with long options starting with two dashes (`-').  A summary of
++      options is included below.  For a complete description, see the
++      <application>Info</application> files.</para>
++
++    <variablelist>
++      <varlistentry>
++        <term><option>-h</option>
++          <option>--help</option>
++        </term>
++        <listitem>
++          <para>Show summary of options.</para>
++        </listitem>
++      </varlistentry>
++      <varlistentry>
++        <term><option>-v</option>
++          <option>--version</option>
++        </term>
++        <listitem>
++          <para>Show version of program.</para>
++        </listitem>
++      </varlistentry>
++    </variablelist>
++  </refsect1>
++  <refsect1>
++    <title>SEE ALSO</title>
++
++    <para>bar (1), baz (1).</para>
++
++    <para>The programs are documented fully by <citetitle>The Rise and
++      Fall of a Fooish Bar</citetitle> available via the
++      <application>Info</application> system.</para>
++  </refsect1>
++  <refsect1>
++    <title>AUTHOR</title>
++
++    <para>This manual page was written by &dhusername; &dhemail; for
++      the &debian; system (but may be used by others).  Permission is
++      granted to copy, distribute and/or modify this document under
++      the terms of the &gnu; General Public License, Version 2 any 
++	  later version published by the Free Software Foundation.
++    </para>
++	<para>
++	  On Debian systems, the complete text of the GNU General Public
++	  License can be found in /usr/share/common-licenses/GPL.
++	</para>
++
++  </refsect1>
++</refentry>
++
+diff -ruN ibpp2-2.5.2.2.orig/debian/menu.ex ibpp2-2.5.2.2/debian/menu.ex
+--- ibpp2-2.5.2.2.orig/debian/menu.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/menu.ex	2006-07-18 08:21:30.138321728 +0200
+@@ -0,0 +1,2 @@
++?package(ibpp2):needs="X11|text|vc|wm" section="Apps/see-menu-manual"\
++  title="ibpp2" command="/usr/bin/ibpp2"
+diff -ruN ibpp2-2.5.2.2.orig/debian/postinst.ex ibpp2-2.5.2.2/debian/postinst.ex
+--- ibpp2-2.5.2.2.orig/debian/postinst.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/postinst.ex	2006-07-18 08:21:30.139321576 +0200
+@@ -0,0 +1,42 @@
++#!/bin/sh
++# postinst script for ibpp2
++#
++# see: dh_installdeb(1)
++
++set -e
++
++# summary of how this script can be called:
++#        * <postinst> `configure' <most-recently-configured-version>
++#        * <old-postinst> `abort-upgrade' <new version>
++#        * <conflictor's-postinst> `abort-remove' `in-favour' <package>
++#          <new-version>
++#        * <deconfigured's-postinst> `abort-deconfigure' `in-favour'
++#          <failed-install-package> <version> `removing'
++#          <conflicting-package> <version>
++# for details, see http://www.debian.org/doc/debian-policy/ or
++# the debian-policy package
++#
++
++case "$1" in
++    configure)
++
++    ;;
++
++    abort-upgrade|abort-remove|abort-deconfigure)
++
++    ;;
++
++    *)
++        echo "postinst called with unknown argument \`$1'" >&2
++        exit 1
++    ;;
++esac
++
++# dh_installdeb will replace this with shell code automatically
++# generated by other debhelper scripts.
++
++#DEBHELPER#
++
++exit 0
++
++
+diff -ruN ibpp2-2.5.2.2.orig/debian/postrm.ex ibpp2-2.5.2.2/debian/postrm.ex
+--- ibpp2-2.5.2.2.orig/debian/postrm.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/postrm.ex	2006-07-18 08:21:30.140321424 +0200
+@@ -0,0 +1,38 @@
++#!/bin/sh
++# postrm script for ibpp2
++#
++# see: dh_installdeb(1)
++
++set -e
++
++# summary of how this script can be called:
++#        * <postrm> `remove'
++#        * <postrm> `purge'
++#        * <old-postrm> `upgrade' <new-version>
++#        * <new-postrm> `failed-upgrade' <old-version>
++#        * <new-postrm> `abort-install'
++#        * <new-postrm> `abort-install' <old-version>
++#        * <new-postrm> `abort-upgrade' <old-version>
++#        * <disappearer's-postrm> `disappear' <r>overwrit>r> <new-version>
++# for details, see http://www.debian.org/doc/debian-policy/ or
++# the debian-policy package
++
++
++case "$1" in
++       purge|remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
++
++
++        ;;
++
++    *)
++        echo "postrm called with unknown argument \`$1'" >&2
++        exit 1
++
++esac
++
++# dh_installdeb will replace this with shell code automatically
++# generated by other debhelper scripts.
++
++#DEBHELPER#
++
++exit 0
+diff -ruN ibpp2-2.5.2.2.orig/debian/preinst.ex ibpp2-2.5.2.2/debian/preinst.ex
+--- ibpp2-2.5.2.2.orig/debian/preinst.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/preinst.ex	2006-07-18 08:21:30.140321424 +0200
+@@ -0,0 +1,38 @@
++#!/bin/sh
++# preinst script for ibpp2
++#
++# see: dh_installdeb(1)
++
++set -e
++
++# summary of how this script can be called:
++#        * <new-preinst> `install'
++#        * <new-preinst> `install' <old-version>
++#        * <new-preinst> `upgrade' <old-version>
++#        * <old-preinst> `abort-upgrade' <new-version>
++#
++# for details, see http://www.debian.org/doc/debian-policy/ or
++# the debian-policy package
++
++
++case "$1" in
++    install|upgrade)
++    ;;
++
++    abort-upgrade)
++    ;;
++
++    *)
++        echo "preinst called with unknown argument \`$1'" >&2
++        exit 1
++    ;;
++esac
++
++# dh_installdeb will replace this with shell code automatically
++# generated by other debhelper scripts.
++
++#DEBHELPER#
++
++exit 0
++
++
+diff -ruN ibpp2-2.5.2.2.orig/debian/prerm.ex ibpp2-2.5.2.2/debian/prerm.ex
+--- ibpp2-2.5.2.2.orig/debian/prerm.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/prerm.ex	2006-07-18 08:21:30.141321272 +0200
+@@ -0,0 +1,38 @@
++#!/bin/sh
++# prerm script for ibpp2
++#
++# see: dh_installdeb(1)
++
++set -e
++
++# summary of how this script can be called:
++#        * <prerm> `remove'
++#        * <old-prerm> `upgrade' <new-version>
++#        * <new-prerm> `failed-upgrade' <old-version>
++#        * <conflictor's-prerm> `remove' `in-favour' <package> <new-version>
++#        * <deconfigured's-prerm> `deconfigure' `in-favour'
++#          <package-being-installed> <version> `removing'
++#          <conflicting-package> <version>
++# for details, see http://www.debian.org/doc/debian-policy/ or
++# the debian-policy package
++
++
++case "$1" in
++    remove|upgrade|deconfigure)
++        ;;
++    failed-upgrade)
++        ;;
++    *)
++        echo "prerm called with unknown argument \`$1'" >&2
++        exit 1
++    ;;
++esac
++
++# dh_installdeb will replace this with shell code automatically
++# generated by other debhelper scripts.
++
++#DEBHELPER#
++
++exit 0
++
++
+diff -ruN ibpp2-2.5.2.2.orig/debian/rules ibpp2-2.5.2.2/debian/rules
+--- ibpp2-2.5.2.2.orig/debian/rules	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/rules	2006-07-18 08:21:30.142321120 +0200
+@@ -0,0 +1,114 @@
++#!/usr/bin/make -f
++# -*- makefile -*-
++# Sample debian/rules that uses debhelper.
++# This file was originally written by Joey Hess and Craig Small.
++# As a special exception, when this file is copied by dh-make into a
++# dh-make output file, you may use that output file without restriction.
++# This special exception was added by Craig Small in version 0.37 of dh-make.
++
++# Uncomment this to turn on verbose mode.
++#export DH_VERBOSE=1
++
++
++# These are used for cross-compiling and for saving the configure script
++# from having to guess our platform (since we know it already)
++DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
++DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
++
++
++CFLAGS = -Wall -g
++
++ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
++	CFLAGS += -O0
++else
++	CFLAGS += -O2
++endif
++
++# shared library versions, option 1
++version=2.0.5
++major=2
++# option 2, assuming the library is created as src/.libs/libfoo.so.2.0.5 or so
++#version=`ls src/.libs/lib*.so.* | \
++# awk '{if (match($$0,/[0-9]+\.[0-9]+\.[0-9]+$$/)) print substr($$0,RSTART)}'`
++#major=`ls src/.libs/lib*.so.* | \
++# awk '{if (match($$0,/\.so\.[0-9]+$$/)) print substr($$0,RSTART+4)}'`
++
++config.status: configure
++	dh_testdir
++	# Add here commands to configure the package.
++	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --mandir=\$${prefix}/share/man --infodir=\$${prefix}/share/info CFLAGS="$(CFLAGS)" LDFLAGS="-Wl,-z,defs"
++
++
++build: build-stamp
++build-stamp:  config.status
++	dh_testdir
++
++	# Add here commands to compile the package.
++	$(MAKE)
++
++	touch $@
++
++clean:
++	dh_testdir
++	dh_testroot
++	rm -f build-stamp 
++
++	# Add here commands to clean up after the build process.
++	-$(MAKE) distclean
++ifneq "$(wildcard /usr/share/misc/config.sub)" ""
++	cp -f /usr/share/misc/config.sub config.sub
++endif
++ifneq "$(wildcard /usr/share/misc/config.guess)" ""
++	cp -f /usr/share/misc/config.guess config.guess
++endif
++
++
++	dh_clean 
++
++install: build
++	dh_testdir
++	dh_testroot
++	dh_clean -k 
++	dh_installdirs
++
++	# Add here commands to install the package into debian/tmp
++	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
++
++
++# Build architecture-independent files here.
++binary-indep: build install
++# We have nothing to do by default.
++
++# Build architecture-dependent files here.
++binary-arch: build install
++	dh_testdir
++	dh_testroot
++	dh_installchangelogs changelog.txt
++	dh_installdocs
++	dh_installexamples
++	dh_install --autodest
++#	dh_installmenu
++#	dh_installdebconf	
++#	dh_installlogrotate
++#	dh_installemacsen
++#	dh_installpam
++#	dh_installmime
++#	dh_installinit
++#	dh_installcron
++#	dh_installinfo
++	dh_installman
++	dh_link
++	dh_strip
++	dh_compress
++	dh_fixperms
++#	dh_perl
++#	dh_python
++#	dh_makeshlibs
++	dh_installdeb
++	dh_shlibdeps
++	dh_gencontrol
++	dh_md5sums
++	dh_builddeb
++
++binary: binary-indep binary-arch
++.PHONY: build clean binary-indep binary-arch binary install 
+diff -ruN ibpp2-2.5.2.2.orig/debian/shlibs.local.ex ibpp2-2.5.2.2/debian/shlibs.local.ex
+--- ibpp2-2.5.2.2.orig/debian/shlibs.local.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/shlibs.local.ex	2006-07-18 08:21:30.143320968 +0200
+@@ -0,0 +1 @@
++libibpp2 2.5.2.2 ibpp2 (>> 2.5.2.2-0), ibpp2 (<< 2.5.2.2-99)
+diff -ruN ibpp2-2.5.2.2.orig/debian/watch.ex ibpp2-2.5.2.2/debian/watch.ex
+--- ibpp2-2.5.2.2.orig/debian/watch.ex	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/debian/watch.ex	2006-07-18 08:21:30.144320816 +0200
+@@ -0,0 +1,22 @@
++# Example watch control file for uscan
++# Rename this file to "watch" and then you can run the "uscan" command
++# to check for upstream updates and more.
++# See uscan(1) for format
++
++# Compulsory line, this is a version 3 file
++version=3
++
++# Uncomment to examine a Webpage 
++# <Webpage URL> <string match>
++#http://www.example.com/downloads.php ibpp2-(.*)\.tar\.gz
++
++# Uncomment to examine a Webserver directory
++#http://www.example.com/pub/ibpp2-(.*)\.tar\.gz
++
++# Uncommment to examine a FTP server
++#ftp://ftp.example.com/pub/ibpp2-(.*)\.tar\.gz debian uupdate
++
++# Uncomment to find new files on sourceforge, for debscripts >= 2.9
++# http://sf.net/ibpp2/ibpp2-(.*)\.tar\.gz
++
++
+diff -ruN ibpp2-2.5.2.2.orig/DEBIAN.readme ibpp2-2.5.2.2/DEBIAN.readme
+--- ibpp2-2.5.2.2.orig/DEBIAN.readme	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/DEBIAN.readme	2006-07-18 08:41:27.873238344 +0200
+@@ -0,0 +1,7 @@
++Run autogen.sh ( you must have automake, autoconf and libtool installed )
++Run command
++
++# fakeroot debian/rules binary
++
++If this command returns access denied error, chmod 755 debian/rules
++You must have g++, fakeroot and debhelper package installed
+diff -ruN ibpp2-2.5.2.2.orig/Makefile.am ibpp2-2.5.2.2/Makefile.am
+--- ibpp2-2.5.2.2.orig/Makefile.am	1970-01-01 01:00:00.000000000 +0100
++++ ibpp2-2.5.2.2/Makefile.am	2006-07-18 08:21:30.145320664 +0200
+@@ -0,0 +1,6 @@
++# not a GNU package. You can remove this line, if
++# have all needed files, that a GNU package needs
++AUTOMAKE_OPTIONS = foreign 1.4
++
++SUBDIRS = core
++AM_CXXFLAGS = -DIBPP_GCC -DIBPP_LINUX

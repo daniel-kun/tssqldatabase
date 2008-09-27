@@ -1,0 +1,180 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!-- C++Builder XML Project -->
+<PROJECT>
+  <MACROS>
+    <VERSION value="BCB.06.00"/>
+    <PROJECT value="bin\tests.exe"/>
+    <OBJFILES value="bin\tests.obj bin\_dpb.obj bin\_ibs.obj bin\_rb.obj bin\_spb.obj 
+      bin\_tpb.obj bin\array.obj bin\blob.obj bin\database.obj bin\date.obj 
+      bin\dbkey.obj bin\exception.obj bin\row.obj bin\service.obj 
+      bin\statement.obj bin\time.obj bin\transaction.obj bin\_ibpp.obj 
+      bin\user.obj bin\events.obj"/>
+    <RESFILES value="tests.res"/>
+    <IDLFILES value=""/>
+    <IDLGENFILES value=""/>
+    <DEFFILE value=""/>
+    <RESDEPEN value="$(RESFILES)"/>
+    <LIBFILES value=""/>
+    <LIBRARIES value=""/>
+    <SPARELIBS value=""/>
+    <PACKAGES value="vcl.bpi rtl.bpi dbrtl.bpi adortl.bpi vcldb.bpi vclx.bpi bdertl.bpi 
+      vcldbx.bpi ibxpress.bpi cds.bpi dsnap.bpi bdecds.bpi qrpt.bpi teeui.bpi 
+      teedb.bpi tee.bpi dss.bpi teeqr.bpi visualclx.bpi visualdbclx.bpi 
+      dsnapcrba.bpi dsnapcon.bpi bcbsmp.bpi"/>
+    <PATHCPP value=".;..;..\..\core"/>
+    <PATHPAS value=".;"/>
+    <PATHRC value=".;"/>
+    <PATHASM value=".;"/>
+    <DEBUGLIBPATH value="$(BCB)\lib\debug"/>
+    <RELEASELIBPATH value="$(BCB)\lib\release"/>
+    <LINKER value="ilink32"/>
+    <USERDEFINES value="IBPP_WINDOWS;_DEBUG"/>
+    <SYSDEFINES value="NO_STRICT;_NO_VCL;_RTLDLL;USEPACKAGES"/>
+    <MAINSOURCE value="tests.bpf"/>
+    <INCLUDEPATH value="..\;..;$(BCB)\include;$(BCB)\include\vcl;..\..\core"/>
+    <LIBPATH value="..\;..;..\..\core;$(BCB)\lib\obj;$(BCB)\lib"/>
+    <WARNINGS value="-w-par"/>
+    <OTHERFILES value=""/>
+  </MACROS>
+  <OPTIONS>
+    <IDLCFLAGS value="-I..\. -I.. -I$(BCB)\include -I$(BCB)\include\vcl -I..\..\core -src_suffix 
+      cpp -DIBPP_WINDOWS -D_DEBUG -boa"/>
+    <CFLAG1 value="-Od -H=$(BCB)\lib\vcl60.csm -Hc -w -Vx -Ve -X- -r- -a8 -b- -k -y -v -vi- 
+      -tWC -tWM -c"/>
+    <PFLAGS value="-N2bin -N0bin -$Y+ -$W -$O- -$A8 -v -JPHNE -M"/>
+    <RFLAGS value=""/>
+    <AFLAGS value="/mx /w2 /zi"/>
+    <LFLAGS value="-Ibin -D&quot;&quot; -ap -Tpe -x -Gn -v"/>
+    <OTHERFILES value=""/>
+  </OPTIONS>
+  <LINKER>
+    <ALLOBJ value="c0x32.obj $(PACKAGES) $(OBJFILES)"/>
+    <ALLRES value="$(RESFILES)"/>
+    <ALLLIB value="$(LIBFILES) $(LIBRARIES) import32.lib cw32mti.lib"/>
+    <OTHERFILES value=""/>
+  </LINKER>
+  <FILELIST>
+      <FILE FILENAME="..\tests.cpp" FORMNAME="" UNITNAME="tests" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="tests.res" FORMNAME="" UNITNAME="tests.res" CONTAINERID="ResTool" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="tests.bpf" FORMNAME="" UNITNAME="tests" CONTAINERID="BPF" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\_dpb.cpp" FORMNAME="" UNITNAME="_dpb.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\_ibs.cpp" FORMNAME="" UNITNAME="_ibs.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\_rb.cpp" FORMNAME="" UNITNAME="_rb.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\_spb.cpp" FORMNAME="" UNITNAME="_spb.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\_tpb.cpp" FORMNAME="" UNITNAME="_tpb.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\array.cpp" FORMNAME="" UNITNAME="array.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\blob.cpp" FORMNAME="" UNITNAME="blob.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\database.cpp" FORMNAME="" UNITNAME="database.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\date.cpp" FORMNAME="" UNITNAME="date.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\dbkey.cpp" FORMNAME="" UNITNAME="dbkey.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\exception.cpp" FORMNAME="" UNITNAME="exception.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\row.cpp" FORMNAME="" UNITNAME="row.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\service.cpp" FORMNAME="" UNITNAME="service.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\statement.cpp" FORMNAME="" UNITNAME="statement.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\time.cpp" FORMNAME="" UNITNAME="time.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\transaction.cpp" FORMNAME="" UNITNAME="transaction.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\_ibpp.cpp" FORMNAME="" UNITNAME="_ibpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\user.cpp" FORMNAME="" UNITNAME="user" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="..\..\core\events.cpp" FORMNAME="" UNITNAME="events" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+  </FILELIST>
+  <BUILDTOOLS>
+  </BUILDTOOLS>
+
+  <IDEOPTIONS>
+[Version Info]
+IncludeVerInfo=0
+AutoIncBuild=0
+MajorVer=1
+MinorVer=0
+Release=0
+Build=0
+Debug=0
+PreRelease=0
+Special=0
+Private=0
+DLL=0
+Locale=2060
+CodePage=1252
+
+[Version Info Keys]
+CompanyName=
+FileDescription=
+FileVersion=1.0.0.0
+InternalName=
+LegalCopyright=
+LegalTrademarks=
+OriginalFilename=
+ProductName=
+ProductVersion=1.0.0.0
+Comments=
+
+[Excluded Packages]
+c:\program files\borland\cbuilder6\Bin\dclite60.bpl=Borland Integrated Translation Environment
+
+[HistoryLists\hlIncludePath]
+Count=3
+Item0=..\;..;$(BCB)\include;$(BCB)\include\vcl;..\..\core
+Item1=..\;$(BCB)\include;$(BCB)\include\vcl;..\..\core
+Item2=..\;$(BCB)\include;$(BCB)\include\vcl
+
+[HistoryLists\hlLibraryPath]
+Count=5
+Item0=..\;..;..\..\core;$(BCB)\lib\obj;$(BCB)\lib
+Item1=..\;..\..\core;..;$(BCB)\lib\obj;$(BCB)\lib
+Item2=..\..\core;..\;..;$(BCB)\lib\obj;$(BCB)\lib
+Item3=..\;..;$(BCB)\lib\obj;$(BCB)\lib
+Item4=..\;$(BCB)\lib\obj;$(BCB)\lib
+
+[HistoryLists\hlDebugSourcePath]
+Count=1
+Item0=$(BCB)\source\vcl
+
+[HistoryLists\hlConditionals]
+Count=6
+Item0=IBPP_WINDOWS;_DEBUG
+Item1=IBPP_WINDOWS
+Item2=IBPP_WINDOWS;IBPP_BCC
+Item3=_DEBUG;IBPP_WINDOWS;IBPP_BCC
+Item4=_DEBUG;IBPP_WINDOWS;IBPP_BCB
+Item5=_DEBUG
+
+[HistoryLists\hlIntOutputDir]
+Count=4
+Item0=bin
+Item1=output
+Item2=output\
+Item3=debug
+
+[HistoryLists\hlFinalOutputDir]
+Count=4
+Item0=bin\
+Item1=output\
+Item2=debug\
+Item3=debug
+
+[Debugging]
+DebugSourceDirs=$(BCB)\source\vcl
+
+[Parameters]
+RunParams=
+Launcher=
+UseLauncher=0
+DebugCWD=
+HostApplication=
+RemoteHost=
+RemotePath=
+RemoteLauncher=
+RemoteCWD=
+RemoteDebug=0
+
+[Compiler]
+ShowInfoMsgs=0
+LinkDebugVcl=0
+LinkCGLIB=0
+
+[CORBA]
+AddServerUnit=1
+AddClientUnit=1
+PrecompiledHeaders=1
+  </IDEOPTIONS>
+</PROJECT>
