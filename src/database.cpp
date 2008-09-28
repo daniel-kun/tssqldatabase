@@ -2,7 +2,226 @@
 #include "database_p.h"
 #include <QThread>
 
-/* This source-file only includes pimpl-forwards */
+TsSqlVariant::TsSqlVariant(): 
+   m_type(stUnknown),
+   m_delete(false)
+{
+   m_data.asPointer = 0;
+}
+
+TsSqlVariant::~TsSqlVariant()
+{
+   setNull();
+}
+
+TsSqlType TsSqlVariant::type() const
+{
+   return m_type;
+}
+
+bool TsSqlVariant::isNull() const
+{
+   return m_type == stUnknown && m_data.asPointer == 0;
+}
+
+void TsSqlVariant::setNull()
+{
+   if (m_delete)
+   {
+      switch(m_type)
+      {
+         case stBlob:
+            delete reinterpret_cast<QByteArray*>(m_data.asPointer);
+            break;
+         case stDate:
+            delete reinterpret_cast<QDate*>(m_data.asPointer);
+            break;
+         case stTime:
+            delete reinterpret_cast<QTime*>(m_data.asPointer);
+            break;
+         case stTimeStamp:
+            delete reinterpret_cast<QDateTime*>(m_data.asPointer);
+            break;
+         case stString:
+            delete reinterpret_cast<QString*>(m_data.asPointer);
+            break;
+         default:
+            break;
+      }
+   }
+   m_data.asPointer = 0;
+   m_type = stUnknown;
+   m_delete = false;
+}
+
+void TsSqlVariant::setVariant(const QVariant &value)
+{
+   switch(m_type)
+   {
+      case stBlob:
+         *reinterpret_cast<QByteArray*>(m_data.asPointer) = value.toByteArray();
+         break;
+      case stDate:
+         *reinterpret_cast<QDate*>(m_data.asPointer) = value.toDate();
+         break;
+      case stTime:
+         *reinterpret_cast<QTime*>(m_data.asPointer) = value.toTime();
+         break;
+      case stTimeStamp:
+         *reinterpret_cast<QDateTime*>(m_data.asPointer) = value.toDateTime();
+         break;
+      case stString:
+         *reinterpret_cast<QString*>(m_data.asPointer) = value.toString();
+         break;
+      case stSmallInt:
+         m_data.asInt16 = value.toInt();
+         break;
+      case stInt:
+         m_data.asInt32 = value.toInt();
+         break;
+      case stLargeInt:
+         m_data.asInt64 = value.toLongLong();
+         break;
+      case stFloat:
+         m_data.asFloat = value.toDouble(); // there's no toFloat
+         break;
+      case stDouble:
+         m_data.asDouble = value.toDouble();
+         break;
+      default:
+         // If none or an incompatible type is currently set
+         setNull();
+         switch(value.type())
+         {
+            case QVariant::Invalid:
+               m_data.asPointer = 0;
+               m_type = stUnknown;
+               break;
+            case QVariant::ByteArray:
+               newValue(value.toByteArray(), stBlob);
+               break;
+            case QVariant::Date:
+               newValue(value.toDate(), stDate);
+               break;
+            case QVariant::DateTime:
+               newValue(value.toDateTime(), stTimeStamp);
+               break;
+            case QVariant::Double:
+               m_data.asDouble = value.toDouble();
+               m_type = stDouble;
+               m_delete = false;
+               break;
+            case QVariant::Int:
+               m_data.asInt32 = value.toInt();
+               m_type = stInt;
+               m_delete = false;
+               break;
+            case QVariant::LongLong:
+               m_data.asInt64 = value.toLongLong();
+               m_type = stLargeInt;
+               m_delete = false;
+               break;
+            case QVariant::Time:
+               newValue(value.toTime(), stTime);
+               break;
+            case QVariant::UInt:
+               m_data.asInt32 = value.toUInt();
+               m_type = stInt;
+               m_delete = false;
+               break;
+            case QVariant::ULongLong:
+               m_data.asInt64 = value.toULongLong();
+               m_type = stLargeInt;
+               m_delete = false;
+               break;
+            default:
+               // Save it as string, if nothing else matched
+               newValue(value.toString(), stString);
+               break;
+         }
+   }
+}
+
+QVariant TsSqlVariant::asVariant() const
+{
+   switch(m_type)
+   {
+      case stBlob:
+         return QVariant(*reinterpret_cast<QByteArray*>(m_data.asPointer));
+      case stDate:
+         return QVariant(*reinterpret_cast<QDate*>(m_data.asPointer));
+      case stTime:
+         return QVariant(*reinterpret_cast<QTime*>(m_data.asPointer));
+      case stTimeStamp:
+         return QVariant(*reinterpret_cast<QDateTime*>(m_data.asPointer));
+      case stString:
+         return QVariant(*reinterpret_cast<QString*>(m_data.asPointer));
+      case stSmallInt:
+         return QVariant(m_data.asInt16);
+      case stInt:
+         return QVariant(m_data.asInt32);
+      case stLargeInt:
+         return QVariant(m_data.asInt64);
+      case stFloat:
+         return QVariant(m_data.asFloat);
+      case stDouble:
+         return QVariant(m_data.asDouble);
+      default:
+         return QVariant();
+   }
+}
+
+QByteArray TsSqlVariant::asData() const
+{
+   return asVariant().toByteArray();
+}
+
+QString TsSqlVariant::asString() const
+{
+   return asVariant().toString();
+}
+
+int16_t TsSqlVariant::asInt16() const
+{
+   return asVariant().toInt();
+}
+
+int32_t TsSqlVariant::asInt32() const
+{
+   return asVariant().toInt();
+}
+
+int64_t TsSqlVariant::asInt64() const
+{
+   return asVariant().toInt();
+}
+
+float TsSqlVariant::asFloat() const
+{
+   return asVariant().toDouble();
+}
+
+double TsSqlVariant::asDouble() const
+{
+   return asVariant().toDouble();
+}
+
+QDateTime TsSqlVariant::asTimeStamp() const
+{
+   return asVariant().toDateTime();
+}
+
+QDate TsSqlVariant::asDate() const
+{
+   return asVariant().toDate();
+}
+
+QTime TsSqlVariant::asTime() const
+{
+   return asVariant().toTime();
+}
+
+/* The rest of this source-file only includes pimpl-forwards */
 
 TsSqlDatabase::TsSqlDatabase(
    const QString &server,
@@ -21,9 +240,9 @@ TsSqlDatabase::TsSqlDatabase(
             characterSet,
             createParams))
 {
-   connect(m_impl, SIGNAL(opened()),       this, SLOT(emitOpened()));
-   connect(m_impl, SIGNAL(closed()),       this, SLOT(emitClosed()));
-   connect(m_impl, SIGNAL(error(QString)), this, SLOT(emitError(QString)));
+   connect(m_impl, SIGNAL(opened()),       this, SIGNAL(opened()));
+   connect(m_impl, SIGNAL(closed()),       this, SIGNAL(closed()));
+   connect(m_impl, SIGNAL(error(QString)), this, SIGNAL(error(QString)));
 }
 
 TsSqlDatabase::~TsSqlDatabase()
@@ -31,19 +250,9 @@ TsSqlDatabase::~TsSqlDatabase()
    delete m_impl;
 }
 
-void TsSqlDatabase::emitOpened()
+void TsSqlDatabase::test()
 {
-   emit opened();
-}
-
-void TsSqlDatabase::emitClosed()
-{
-   emit closed();
-}
-
-void TsSqlDatabase::emitError(const QString &errorMessage)
-{
-   emit error(errorMessage);
+   m_impl->test();
 }
 
 void TsSqlDatabase::open()
@@ -54,6 +263,16 @@ void TsSqlDatabase::open()
 void TsSqlDatabase::close()
 {
    m_impl->close();
+}
+
+void TsSqlDatabase::openWaiting()
+{
+   m_impl->openWaiting();
+}
+
+void TsSqlDatabase::closeWaiting()
+{
+   m_impl->closeWaiting();
 }
 
 bool TsSqlDatabase::isOpen()
@@ -106,35 +325,15 @@ TsSqlTransaction::TsSqlTransaction(
    TransactionMode mode):
    m_impl(new TsSqlTransactionImpl(*database.m_impl, mode))
 {
-   connect(m_impl, SIGNAL(started()),      this, SLOT(emitStarted()));
-   connect(m_impl, SIGNAL(commited()),     this, SLOT(emitCommited()));
-   connect(m_impl, SIGNAL(rolledBack()),   this, SLOT(emitRolledBack()));
-   connect(m_impl, SIGNAL(error(QString)), this, SLOT(emitError(QString)));
+   connect(m_impl, SIGNAL(started()),      this, SIGNAL(started()));
+   connect(m_impl, SIGNAL(commited()),     this, SIGNAL(commited()));
+   connect(m_impl, SIGNAL(rolledBack()),   this, SIGNAL(rolledBack()));
+   connect(m_impl, SIGNAL(error(QString)), this, SIGNAL(error(QString)));
 }
 
 TsSqlTransaction::~TsSqlTransaction()
 {
    delete m_impl;
-}
-
-void TsSqlTransaction::emitStarted()
-{
-   emit started();
-}
-
-void TsSqlTransaction::emitCommited()
-{
-   emit commited();
-}
-
-void TsSqlTransaction::emitRolledBack()
-{
-   emit rolledBack();
-}
-
-void TsSqlTransaction::emitError(const QString &errorMessage)
-{
-   emit error(errorMessage);
 }
 
 void TsSqlTransaction::start()
@@ -155,6 +354,26 @@ void TsSqlTransaction::commitRetaining()
 void TsSqlTransaction::rollBack()
 {
    m_impl->rollBack();
+}
+
+void TsSqlTransaction::startWaiting()
+{
+   m_impl->startWaiting();
+}
+
+void TsSqlTransaction::commitWaiting()
+{
+   m_impl->commitWaiting();
+}
+
+void TsSqlTransaction::commitRetainingWaiting()
+{
+   m_impl->commitRetainingWaiting();
+}
+
+void TsSqlTransaction::rollBackWaiting()
+{
+   m_impl->rollBackWaiting();
 }
 
 bool TsSqlTransaction::isStarted()
@@ -189,39 +408,14 @@ TsSqlStatement::~TsSqlStatement()
    delete m_impl;
 }
 
-void TsSqlStatement::emitExecuted()
-{
-   emit executed();
-}
-
-void TsSqlStatement::emitFetchStarted()
-{
-   emit fetchStarted();
-}
-
-void TsSqlStatement::emitFetched(TsSqlRow row)
-{
-   emit fetched(row);
-}
-
-void TsSqlStatement::emitFetchFinished()
-{
-   emit fetchFinished();
-}
-
-void TsSqlStatement::emitError(const QString &errorMessage)
-{
-   emit error(errorMessage);
-}
-
 void TsSqlStatement::connectSignals()
 {
-   connect(m_impl, SIGNAL(prepared()),        this, SLOT(emitPrepared()));
-   connect(m_impl, SIGNAL(executed()),        this, SLOT(emitExecuted()));
-   connect(m_impl, SIGNAL(fetchStarted()),    this, SLOT(emitFetchStarted()));
-   connect(m_impl, SIGNAL(fetched(TsSqlRow)), this, SLOT(emitFetched(TsSqlRow)));
-   connect(m_impl, SIGNAL(fetchFinished()),   this, SLOT(emitFetchFinished()));
-   connect(m_impl, SIGNAL(error(QString)),    this, SLOT(emitError(QString)));
+   connect(m_impl, SIGNAL(prepared()),        this, SIGNAL(prepared()));
+   connect(m_impl, SIGNAL(executed()),        this, SIGNAL(executed()));
+   connect(m_impl, SIGNAL(fetchStarted()),    this, SIGNAL(fetchStarted()));
+   connect(m_impl, SIGNAL(fetched(TsSqlRow)), this, SIGNAL(fetched(TsSqlRow)));
+   connect(m_impl, SIGNAL(fetchFinished()),   this, SIGNAL(fetchFinished()));
+   connect(m_impl, SIGNAL(error(QString)),    this, SIGNAL(error(QString)));
 }
 
 void TsSqlStatement::prepare(const QString &sql)
@@ -229,14 +423,64 @@ void TsSqlStatement::prepare(const QString &sql)
    m_impl->prepare(sql);
 }
 
-void TsSqlStatement::execute(const QString &sql)
-{
-   m_impl->execute(sql);
-}
-
 void TsSqlStatement::execute()
 {
-   m_impl->execute();
+   m_impl->execute(false);
+}
+
+void TsSqlStatement::executeAndFetch()
+{
+   m_impl->execute(true);
+}
+
+void TsSqlStatement::execute(const QString &sql, bool startFetch)
+{
+   m_impl->execute(sql, startFetch);
+}
+
+void TsSqlStatement::execute(const TsSqlRow &params, bool startFetch)
+{
+   m_impl->execute(params, startFetch);
+}
+
+void TsSqlStatement::execute(
+   const QString &sql, 
+   const TsSqlRow &params,
+   bool startFetch)
+{
+   m_impl->execute(sql, params, startFetch);
+}
+
+void TsSqlStatement::prepareWaiting(const QString &sql)
+{
+   m_impl->prepareWaiting(sql);
+}
+
+void TsSqlStatement::executeWaiting()
+{
+   m_impl->executeWaiting();
+}
+
+void TsSqlStatement::executeWaiting(const QString &sql)
+{
+   m_impl->executeWaiting(sql);
+}
+
+void TsSqlStatement::executeWaiting(const TsSqlRow &params)
+{
+   m_impl->executeWaiting(params);
+}
+
+void TsSqlStatement::executeWaiting(
+   const QString &sql, 
+   const TsSqlRow &params)
+{
+   m_impl->executeWaiting(sql, params);
+}
+
+void TsSqlStatement::setParam(int column, const QVariant &param)
+{
+   m_impl->setParam(column, param);
 }
 
 QString TsSqlStatement::sql()
@@ -257,6 +501,16 @@ int TsSqlStatement::affectedRows()
 void TsSqlStatement::fetch()
 {
    m_impl->fetch();
+}
+
+bool TsSqlStatement::fetchRow(TsSqlRow &row)
+{
+   return m_impl->fetchRow(row);
+}
+
+void TsSqlStatement::stopFetching()
+{
+   return m_impl->stopFetching();
 }
 
 int TsSqlStatement::columnCount()

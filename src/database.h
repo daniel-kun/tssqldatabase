@@ -1,5 +1,5 @@
-#ifndef DATABASE_H_27_08_2008
-#define DATABASE_H_27_08_2008
+#ifndef TS_DATABASE_H_27_08_2008
+#define TS_DATABASE_H_27_08_2008
 
 #include <QDate>
 #include <QTime>
@@ -11,6 +11,7 @@
 
 enum TsSqlType
 {
+   stUnknown,
    stBlob,
    stDate,
    stTime,
@@ -23,6 +24,56 @@ enum TsSqlType
    stDouble
 };
 
+class TsSqlVariant
+{
+   private:
+      union Data
+      {
+         void   *asPointer;
+         int16_t asInt16;
+         int32_t asInt32;
+         int64_t asInt64;
+         float   asFloat;
+         double  asDouble;
+      } m_data;
+      TsSqlType m_type;
+      bool      m_delete;
+      template<typename T>
+      void newValue(const T &value, TsSqlType type)
+      {
+         m_data.asPointer = new T(value);
+         m_type = type;
+         m_delete = true;
+      }
+      friend void setFromStatement(TsSqlVariant &variant, void *statement, int column);
+      friend void setStatementParam(const TsSqlVariant &variant, void *statement, int column);
+   public:
+      TsSqlVariant();
+      ~TsSqlVariant();
+      TsSqlType type() const;
+
+      bool isNull() const;
+      void setNull();
+      void setVariant  (const QVariant &value);
+      template<typename T>
+         void set(const T &value)
+      {
+         setVariant(QVariant(value));
+      }
+
+      QVariant   asVariant()   const;
+      QByteArray asData()      const;
+      QString    asString()    const;
+      int16_t    asInt16()     const;
+      int32_t    asInt32()     const;
+      int64_t    asInt64()     const;
+      float      asFloat()     const;
+      double     asDouble()    const;
+      QDateTime  asTimeStamp() const;
+      QDate      asDate()      const;
+      QTime      asTime()      const;
+};
+
 typedef QVector<QVariant> TsSqlRow;
 Q_DECLARE_METATYPE(TsSqlRow);
 
@@ -33,10 +84,6 @@ class TsSqlDatabase: public QObject
       class TsSqlDatabaseImpl *m_impl;
       friend class TsSqlTransaction;
       friend class TsSqlStatement;
-   private slots:
-      void emitOpened();
-      void emitClosed();
-      void emitError(const QString &errorMessage);
    public:
       TsSqlDatabase(
          const QString &server,
@@ -47,8 +94,11 @@ class TsSqlDatabase: public QObject
          const QString &role         = QString(),
          const QString &createParams = QString());
       ~TsSqlDatabase();
+      void test();   // some test-functions for development, only
       void open();   // async
       void close();  // async
+      void openWaiting();  // sync
+      void closeWaiting(); // sync
       bool isOpen();
       QString server();
       QString database();
@@ -70,11 +120,6 @@ class TsSqlTransaction: public QObject
    private:
       class TsSqlTransactionImpl *m_impl;
       friend class TsSqlStatement;
-   private slots:
-      void emitStarted();
-      void emitCommited();
-      void emitRolledBack();
-      void emitError(const QString &errorMessage);
    public:
       enum TransactionMode
       {
@@ -83,11 +128,16 @@ class TsSqlTransaction: public QObject
       };
       TsSqlTransaction(TsSqlDatabase &database, TransactionMode mode = tmWrite);
       ~TsSqlTransaction();
-      virtual void start();               // async
-      virtual void commit();              // async
-      virtual void commitRetaining();
-      virtual void rollBack();            // async
-      virtual bool isStarted();
+      void start();            // async
+      void commit();           // async
+      void commitRetaining();  // async
+      void rollBack();         // async
+
+      void startWaiting();           // sync
+      void commitWaiting();          // sync
+      void commitRetainingWaiting(); // sync
+      void rollBackWaiting();        // sync
+      bool isStarted();
    signals:
       void started();
       void commited();
@@ -102,23 +152,34 @@ class TsSqlStatement: public QObject
    private:
       class TsSqlStatementImpl *m_impl;
       void connectSignals();
-   private slots:
-      void emitExecuted();
-      void emitFetchStarted();
-      void emitFetched(TsSqlRow row);
-      void emitFetchFinished();
-      void emitError(const QString &errorMessage);
    public:
       TsSqlStatement(TsSqlDatabase &database, TsSqlTransaction &transaction);
       TsSqlStatement(TsSqlDatabase &database, TsSqlTransaction &transaction, const QString &sql);
       ~TsSqlStatement();
       void prepare(const QString &sql); // async
-      void execute(const QString &sql); // async
       void execute();                   // async
+      void executeAndFetch();           // async
+      void execute(const QString &sql, bool startFetch = false); // async
+      void execute(const TsSqlRow &params, bool startFetch = false); // async
+      void execute(
+         const QString &sql, 
+         const TsSqlRow &params, 
+         bool startFetch = false); // async
+
+      void prepareWaiting(const QString &sql); // sync
+      void executeWaiting();                   // sync
+      void executeWaiting(const QString &sql); // sync
+      void executeWaiting(const TsSqlRow &params); // sync
+      void executeWaiting(const QString &sql, const TsSqlRow &params); // sync
+
+      void setParam(int column, const QVariant &param); // sync
+
       QString sql();
       QString plan();
       int affectedRows();
-      void fetch(); // async
+      void fetch();                 // async
+      bool fetchRow(TsSqlRow &row); // sync
+      void stopFetching();          // async
 
       int        columnCount();
       QString    columnName(   int columnIndex);

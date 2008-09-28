@@ -1,4 +1,3 @@
-#include <unistd.h>
 #include <QDebug>
 
 #include "private/ibpp/core/ibpp.h"
@@ -22,93 +21,230 @@ TsSqlThreadEmitter::TsSqlThreadEmitter(QObject *object):
 
 void TsSqlThreadEmitter::emitDatabaseOpened()
 {
-   connect(this, SIGNAL(databaseOpened()), m_object, SLOT(emitOpened()), Qt::QueuedConnection);
+   connect(this, SIGNAL(databaseOpened()), m_object, SIGNAL(opened()), Qt::QueuedConnection);
    emit databaseOpened();
 }
 
 void TsSqlThreadEmitter::emitDatabaseClosed()
 {
-   connect(this, SIGNAL(databaseClosed()), m_object, SLOT(emitClosed()), Qt::QueuedConnection);
+   connect(this, SIGNAL(databaseClosed()), m_object, SIGNAL(closed()), Qt::QueuedConnection);
    emit databaseClosed();
 }
 
 void TsSqlThreadEmitter::emitTransactionStarted()
 {
-   connect(this, SIGNAL(transactionStarted()), m_object, SLOT(emitStarted()), Qt::QueuedConnection);
+   connect(this, SIGNAL(transactionStarted()), m_object, SIGNAL(started()), Qt::QueuedConnection);
    emit transactionStarted();
 }
 
 void TsSqlThreadEmitter::emitTransactionCommited()
 {
-   connect(this, SIGNAL(transactionCommited()), m_object, SLOT(emitCommited()), Qt::QueuedConnection);
+   connect(this, SIGNAL(transactionCommited()), m_object, SIGNAL(commited()), Qt::QueuedConnection);
    emit transactionCommited();
 }
 
 void TsSqlThreadEmitter::emitTransactionRolledBack()
 {
-   connect(this, SIGNAL(transactionRolledBack()), m_object, SLOT(emitRolledBack()), Qt::QueuedConnection);
+   connect(this, SIGNAL(transactionRolledBack()), m_object, SIGNAL(rolledBack()), Qt::QueuedConnection);
    emit transactionRolledBack();
 }
 
 void TsSqlThreadEmitter::emitStatementPrepared()
 {
-   connect(this, SIGNAL(statementPrepared()), m_object, SLOT(emitPrepared()), Qt::QueuedConnection);
+   connect(this, SIGNAL(statementPrepared()), m_object, SIGNAL(prepared()), Qt::QueuedConnection);
    emit statementPrepared();
 }
 
 void TsSqlThreadEmitter::emitStatementExecuted()
 {
-   connect(this, SIGNAL(statementExecuted()), m_object, SLOT(emitExecuted()), Qt::QueuedConnection);
+   connect(this, SIGNAL(statementExecuted()), m_object, SIGNAL(executed()), Qt::QueuedConnection);
    emit statementExecuted();
 }
 
 void TsSqlThreadEmitter::emitStatementFetchStarted()
 {
-   connect(this, SIGNAL(statementFetchStarted()), m_object, SLOT(emitFetchStarted()), Qt::QueuedConnection);
+   connect(this, SIGNAL(statementFetchStarted()), m_object, SIGNAL(fetchStarted()), Qt::QueuedConnection);
    emit statementFetchStarted();
 }
 
-void TsSqlThreadEmitter::emitStatementFetched(TsSqlRow row)
+void TsSqlThreadEmitter::emitStatementFetched(const TsSqlRow &row)
 {
-   connect(this, SIGNAL(statementFetched(TsSqlRow)), m_object, SLOT(emitFetched(TsSqlRow)), Qt::QueuedConnection);
+   connect(this, SIGNAL(statementFetched(TsSqlRow)), m_object, SLOT(fetchDataset(TsSqlRow)), Qt::QueuedConnection);
    emit statementFetched(row);
 }
 
 void TsSqlThreadEmitter::emitStatementFetchFinished()
 {
-   connect(this, SIGNAL(statementFetchFinished()), m_object, SLOT(emitFetchFinished()), Qt::QueuedConnection);
+   connect(this, SIGNAL(statementFetchFinished()), m_object, SIGNAL(fetchFinished()), Qt::QueuedConnection);
    emit statementFetchFinished();
 }
 
 void TsSqlThreadEmitter::emitError(const QString &errorMessage)
 {
-   connect(this, SIGNAL(error(QString)), m_object, SLOT(emitError(QString)), Qt::QueuedConnection);
+   connect(this, SIGNAL(error(QString)), m_object, SIGNAL(error(QString)), Qt::QueuedConnection);
    emit error(errorMessage);
 }
 
-TsSqlDatabaseThread::TsSqlDatabaseThread(QMutex &mutex):
-   m_mutex(mutex)
+TsSqlDatabaseThread::TsSqlDatabaseThread()
 {
-   // Send fetch-next signals queued so other commands can be processed
-   // in the meantime.
-   connect(
-      this, 
-      SIGNAL(statementFetchNext(
-         TsSqlStatementImpl *,
-         StatementHandle)),
-      this,
-      SLOT(statementFetchNext(
-         TsSqlStatementImpl *,
-         StatementHandle)),
-      Qt::QueuedConnection);
 }
 
 void TsSqlDatabaseThread::run()
 {
    DEBUG_OUT("New thread " << this << " is running");
-   m_mutex.unlock();
    QThread::run();
    DEBUG_OUT("Thread is stopping");
+}
+
+void setFromStatement(TsSqlVariant &variant, void *statement, int col)
+{
+   using namespace IBPP;
+   Statement &st = *reinterpret_cast<Statement*>(statement);
+   switch(st->ColumnType(col))
+   {
+      case sdBlob:
+         {
+            Blob b = BlobFactory(st->DatabasePtr(), st->TransactionPtr());
+            if (st->Get(col, b))
+               variant.setNull();
+            else
+            {
+               std::string temp;
+               b->Load(temp);
+               variant.setVariant(QVariant(QString::fromStdString(temp)));
+            }
+            break;
+         }
+      case sdDate:
+         {
+            Date d;
+            if (st->Get(col, d))
+               variant.setNull();
+            else
+            {
+               int year, month, day;
+               d.GetDate(year, month, day);
+               variant.setVariant(QVariant(QDate(year, month, day)));
+            }
+            break;
+         }
+      case sdTime:
+         {
+            Time d;
+            if (st->Get(col, d))
+               variant.setNull();
+            else
+            {
+               int hour, minute, second, msec;
+               d.GetTime(hour, minute, second, msec);
+               variant.setVariant(QVariant(QTime(hour, minute, second, msec)));
+            }
+            break;
+         }
+      case sdTimestamp:
+         {
+            Timestamp d;
+            if (st->Get(col, d))
+               variant.setNull();
+            else
+            {
+               int year, month, day, hour, minute, second, msec;
+               d.GetTime(hour, minute, second, msec);
+               d.GetDate(year, month, day);
+               variant.setVariant(
+                  QVariant(QDateTime(
+                     QDate(year, month, day),
+                     QTime(hour, minute, second, msec))));
+            }
+            break;
+         }
+      case sdString:
+         {
+            std::string temp;
+            if (st->Get(col, temp))
+               variant.setNull();
+            else
+               variant.setVariant(QVariant(QString::fromStdString(temp)));
+            break;
+         }
+      case sdSmallint:
+         {
+            int16_t temp;
+            if (st->Get(col, temp))
+               variant.setNull();
+            else
+               variant.setVariant(QVariant(temp));
+            break;
+         }
+      case sdInteger:
+         {
+            int32_t temp;
+            if (st->Get(col, temp))
+               variant.setNull();
+            else
+               variant.setVariant(QVariant(temp));
+            break;
+         }
+      case sdLargeint:
+         {
+            int64_t temp;
+            if (st->Get(col, temp))
+               variant.setNull();
+            else
+               variant.setVariant(QVariant(temp));
+            break;
+         }
+      case sdFloat:
+         {
+            float temp;
+            if (st->Get(col, temp))
+               variant.setNull();
+            else
+               variant.setVariant(QVariant(temp));
+            break;
+         }
+      case sdDouble:
+         {
+            double temp;
+            if (st->Get(col, temp))
+               variant.setNull();
+            else
+               variant.setVariant(QVariant(temp));
+            break;
+         }
+      default:
+         variant.setNull();
+   }
+}
+
+//void setStatementParam(void *statement, int column);
+
+void TsSqlDatabaseThread::test()
+{
+   IBPP::Database db = IBPP::DatabaseFactory(
+      "",
+      "melchior:/var/firebird/test.fdb",
+      "sysdba",
+      "5735");
+   db->Connect();
+   IBPP::Transaction tr = IBPP::TransactionFactory(db);
+   tr->Start();
+
+   IBPP::Statement st = IBPP::StatementFactory(
+      db, 
+      tr, 
+      "select * from test2");
+   st->Execute();
+   if (st->Fetch())
+   {
+      int cols = st->Columns();
+      for(int i = 1; i <= cols; ++i)
+      {
+         TsSqlVariant variant;
+         setFromStatement(variant, &st, i);
+         qDebug() << variant.asString();
+      }
+   }
 }
 
 void TsSqlDatabaseThread::createDatabase(
@@ -144,6 +280,7 @@ void TsSqlDatabaseThread::databaseOpen(TsSqlDatabaseImpl *object, DatabaseHandle
    try
    {
       DBHANDLE(handle)->Connect();
+      TsSqlThreadEmitter emitter(object);
       EMIT_ASYNC(object, emitDatabaseOpened);
    } catch(std::exception &e)
    {
@@ -397,13 +534,16 @@ void TsSqlDatabaseThread::statementPrepare(
 
 void TsSqlDatabaseThread::statementExecute(
    TsSqlStatementImpl *object,
-   StatementHandle handle)
+   StatementHandle handle,
+   bool startFetch)
 {
    DEBUG_RECEIVE("Received execute request from " << object << " for statement " << handle);
    try
    {
       STHANDLE(handle)->Execute();
       EMIT_ASYNC(object, emitStatementExecuted);
+      if (startFetch)
+         statementStartFetch(object, handle);
    } catch(std::exception &e)
    {
       EMIT_ERROR(object, e.what());
@@ -413,16 +553,124 @@ void TsSqlDatabaseThread::statementExecute(
 void TsSqlDatabaseThread::statementExecute(
    TsSqlStatementImpl *object,
    StatementHandle handle,
-   const QString &sql)
+   const QString &sql,
+   bool startFetch)
 {
    DEBUG_RECEIVE("Received execute request from " << object << " for statement " << handle);
    try
    {
       STHANDLE(handle)->Execute(sql.toStdString());
+      EMIT_ASYNC(object, emitStatementPrepared);
       EMIT_ASYNC(object, emitStatementExecuted);
+      if (startFetch)
+         statementStartFetch(object, handle);
    } catch(std::exception &e)
    {
       EMIT_ERROR(object, e.what());
+   }
+}
+
+void TsSqlDatabaseThread::statementExecute(
+   TsSqlStatementImpl *object,
+   StatementHandle handle,
+   const TsSqlRow &params,
+   bool startFetch)
+{
+   DEBUG_RECEIVE("Received execute request from " << object << " for statement " << handle);
+   try
+   {
+      setParams(handle, params);
+      STHANDLE(handle)->Execute();
+      EMIT_ASYNC(object, emitStatementExecuted);
+      if (startFetch)
+         statementStartFetch(object, handle);
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what());
+   }
+}
+
+void TsSqlDatabaseThread::statementExecute(
+   TsSqlStatementImpl *object,
+   StatementHandle handle,
+   const QString &sql,
+   const TsSqlRow &params,
+   bool startFetch)
+{
+   DEBUG_RECEIVE("Received execute request from " << object << " for statement " << handle);
+   try
+   {
+      STHANDLE(handle)->Prepare(sql.toStdString());
+      EMIT_ASYNC(object, emitStatementPrepared);
+      setParams(handle, params);
+      STHANDLE(handle)->Execute();
+      EMIT_ASYNC(object, emitStatementExecuted);
+      if (startFetch)
+         statementStartFetch(object, handle);
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what());
+   }
+}
+
+void TsSqlDatabaseThread::statementSetParam(
+   StatementHandle handle,
+   int col,
+   QVariant param)
+{
+   using namespace IBPP;
+   Statement &st = STHANDLE(handle);
+   Blob blob = BlobFactory(
+         st->DatabasePtr(),
+         st->TransactionPtr());
+   QDate qDate;
+   QTime qTime;
+   QDateTime qDateTime;
+   switch(st->ParameterType(col))
+   {
+      case sdBlob:
+         blob->Save(param.toString().toStdString());
+         st->Set(col, blob);
+         break;
+      case sdDate:
+         qDate = param.toDate();
+         st->Set(col, Date(qDate.year(), qDate.month(), qDate.day()));
+         break;
+      case sdTime:
+         qTime = param.toTime();
+         st->Set(col, Time(
+                  qTime.hour(), 
+                  qTime.minute(), 
+                  qTime.second(), 
+                  qTime.msec()));
+         break;
+      case sdTimestamp:
+         qDateTime = param.toDateTime();
+         st->Set(col, Timestamp(
+                  qDateTime.date().year(),
+                  qDateTime.date().month(),
+                  qDateTime.date().day(),
+                  qDateTime.time().hour(),
+                  qDateTime.time().minute(),
+                  qDateTime.time().second(),
+                  qDateTime.time().msec()));
+         break;
+      case sdString:
+         st->Set(col, param.toString().toStdString());
+         break;
+      case sdSmallint:
+      case sdInteger:
+      case sdLargeint:
+         st->Set(col, param.toInt());
+         break;
+      case sdFloat:
+         st->Set(col, static_cast<float>(param.toDouble()));
+         break;
+      case sdDouble:
+         st->Set(col, param.toDouble());
+         break;
+      default:
+         qDebug() << "Unknown column type! (Set)";
    }
 }
 
@@ -430,97 +678,111 @@ void TsSqlDatabaseThread::emitStatementRow(
    TsSqlStatementImpl *receiver, 
    StatementHandle statement)
 {
-   IBPP::Statement &st = STHANDLE(statement);
-   try
-   {
-      int columns = st->Columns();
-      QVector<QVariant> row(columns);
-      std::string text;
-      IBPP::Blob blob;
-      IBPP::Date date;
-      IBPP::Time time;
-      IBPP::Timestamp timestamp;
-      int  year, month, day, hour, minute, second, msecond;
-      int64_t largeint;
-      double dbl;
-      for(int i = 1; i <= columns; ++i)
-      {
-         switch(st->ColumnType(i))
-         {
-            case IBPP::sdBlob:
-               blob = IBPP::BlobFactory(st->DatabasePtr(), st->TransactionPtr());
-               if (st->Get(i, blob))
-                  row[i-1] = QVariant(QVariant::ByteArray);
-               else
-               {
-                  blob->Load(text);
-                  row[i-1] = QVariant(QByteArray::fromRawData(text.c_str(), text.size()));
-               }
-               break;
-            case IBPP::sdDate:
-               if (st->Get(i, date))
-                  row[i-1] = QVariant(QVariant::Date);
-               else
-               {
-                  date.GetDate(year, month, day);
-                  row[i-1] = QVariant(QDate(year, month, day));
-               }
-               break;
-            case IBPP::sdTime:
-               if (st->Get(i, time))
-                  row[i-1] = QVariant(QVariant::Time);
-               else
-               {
-                  time.GetTime(hour, minute, second, msecond);
-                  row[i-1] = QVariant(QTime(hour, minute, second, msecond));
-               }
-               break;
-            case IBPP::sdTimestamp:
-               if (st->Get(i, timestamp))
-                  row[i-1] = QVariant(QVariant::DateTime);
-               else
-               {
-                  timestamp.GetDate(year, month, day);
-                  timestamp.GetTime(hour, minute, second, msecond);
-                  row[i-1] = QVariant(QDateTime(
-                     QDate(year, month, day), 
-                     QTime(hour, minute, second, msecond)));
-               }
-               break;
-            case IBPP::sdString:
-               {
-                  if (st->Get(i, text))
-                     row[i-1] = QVariant(QVariant::String);
-                  else
-                     row[i-1] = QVariant(QString::fromStdString(text));
-                  break;
-               }
-            case IBPP::sdSmallint:
-            case IBPP::sdInteger:
-            case IBPP::sdLargeint:
-               if (st->Get(i, largeint))
-                  row[i-1] = QVariant(QVariant::LongLong);
-               else
-                  row[i-1] = QVariant(largeint);
-               break;
-            case IBPP::sdFloat:
-            case IBPP::sdDouble:
-               if (st->Get(1, dbl))
-                  row[i-1] = QVariant(QVariant::Double);
-               else
-                  row[i-1] = QVariant(dbl);
-               break;
-            default:
-               qDebug() << "Unknown column type!";
-         }
-      }
-      TsSqlThreadEmitter emitter(receiver);
-      emitter.emitStatementFetched(row);
+   TsSqlRow row;
+   readRow(statement, row);
+   TsSqlThreadEmitter emitter(receiver);
+   emitter.emitStatementFetched(row);
+}
 
-      emit statementFetchNext(receiver, statement);
-   } catch(std::exception &e)
+void TsSqlDatabaseThread::readRow(StatementHandle statement, TsSqlRow &row)
+{
+   using namespace IBPP;
+   Statement &st = STHANDLE(statement);
+   int columns = st->Columns();
+   row.resize(columns);
+   std::string text;
+   Blob blob;
+   Date date;
+   Time time;
+   Timestamp timestamp;
+   int  year, month, day, hour, minute, second, msecond;
+   int64_t largeint;
+   double dbl;
+   for(int i = 1; i <= columns; ++i)
    {
-      EMIT_ERROR(receiver, e.what());
+      switch(st->ColumnType(i))
+      {
+         case sdBlob:
+            blob = BlobFactory(st->DatabasePtr(), st->TransactionPtr());
+            if (st->Get(i, blob))
+               row[i-1] = QVariant(QVariant::ByteArray);
+            else
+            {
+               blob->Load(text);
+               row[i-1] = QVariant(QByteArray::fromRawData(text.c_str(), text.size()));
+            }
+            break;
+         case sdDate:
+            if (st->Get(i, date))
+               row[i-1] = QVariant(QVariant::Date);
+            else
+            {
+               date.GetDate(year, month, day);
+               row[i-1] = QVariant(QDate(year, month, day));
+            }
+            break;
+         case sdTime:
+            if (st->Get(i, time))
+               row[i-1] = QVariant(QVariant::Time);
+            else
+            {
+               time.GetTime(hour, minute, second, msecond);
+               row[i-1] = QVariant(QTime(hour, minute, second, msecond));
+            }
+            break;
+         case sdTimestamp:
+            if (st->Get(i, timestamp))
+               row[i-1] = QVariant(QVariant::DateTime);
+            else
+            {
+               timestamp.GetDate(year, month, day);
+               timestamp.GetTime(hour, minute, second, msecond);
+               row[i-1] = QVariant(QDateTime(
+                  QDate(year, month, day), 
+                  QTime(hour, minute, second, msecond)));
+            }
+            break;
+         case sdString:
+            {
+               if (st->Get(i, text))
+                  row[i-1] = QVariant(QVariant::String);
+               else
+                  row[i-1] = QVariant(QString::fromStdString(text));
+               break;
+            }
+         case sdSmallint:
+         case sdInteger:
+         case sdLargeint:
+            if (st->Get(i, largeint))
+               row[i-1] = QVariant(QVariant::LongLong);
+            else
+               row[i-1] = QVariant(largeint);
+            break;
+         case sdFloat:
+         case sdDouble:
+            if (st->Get(1, dbl))
+               row[i-1] = QVariant(QVariant::Double);
+            else
+               row[i-1] = QVariant(dbl);
+            break;
+         default:
+            qDebug() << "Unknown column type!";
+      }
+   }
+}
+
+void TsSqlDatabaseThread::setParams(StatementHandle statement, const TsSqlRow &params)
+{
+   int col = 1;
+   for(TsSqlRow::const_iterator i = params.begin();
+       i != params.end();
+       ++i)
+   {
+      statementSetParam(
+         statement,
+         col,
+         *i);
+      col++;
    }
 }
 
@@ -566,8 +828,15 @@ void TsSqlDatabaseThread::statementFetchNext(
    // database connection is closed.
    try
    {
+      object->m_stopFetchingMutex.lock();
+      bool stopFetching = object->m_stopFetching;
+      if (stopFetching)
+         object->m_stopFetching = false;
+      object->m_stopFetchingMutex.unlock();
+
       if (!STHANDLE(handle)->TransactionPtr()->Started() || 
-            !STHANDLE(handle)->DatabasePtr()->Connected())
+          !STHANDLE(handle)->DatabasePtr()->Connected() ||
+         stopFetching)
       {
          EMIT_ASYNC(object, emitStatementFetchFinished);
       }
@@ -582,6 +851,16 @@ void TsSqlDatabaseThread::statementFetchNext(
    {
       EMIT_ERROR(object, e.what());
    }
+}
+
+void TsSqlDatabaseThread::statementFetchSingleRow(
+   StatementHandle handle,
+   TsSqlRow *result)
+{
+   if (STHANDLE(handle)->Fetch())
+      readRow(handle, *result);
+   else
+      result->resize(0);
 }
 
 TsSqlType ibppTypeToTs(IBPP::SDT ibppType)
@@ -675,14 +954,12 @@ TsSqlDatabaseImpl::TsSqlDatabaseImpl(
    const QString &characterSet,
    const QString &role,
    const QString &createParams):
-   m_handle(0),
-   m_thread(m_mutex)
+   m_handle(0)
 {
-   m_mutex.lock();
-   m_thread.start();
-   m_mutex.lock(); // wait for unlock in m_thread
    m_thread.moveToThread(&m_thread);
+   m_thread.start();
    DEBUG_OUT("New database object " << this);
+   connect(this, SIGNAL(runTest()), &m_thread, SLOT(test()), Qt::QueuedConnection);
    connect(
       this, 
       SIGNAL(createHandle(
@@ -732,6 +1009,18 @@ TsSqlDatabaseImpl::TsSqlDatabaseImpl(
       Qt::QueuedConnection);
    connect(
       this,
+      SIGNAL(databaseOpenWaiting(TsSqlDatabaseImpl*, DatabaseHandle)),
+      &m_thread,
+      SLOT(databaseOpen(TsSqlDatabaseImpl*, DatabaseHandle)),
+      Qt::BlockingQueuedConnection);
+   connect(
+      this,
+      SIGNAL(databaseCloseWaiting(TsSqlDatabaseImpl*, DatabaseHandle)),
+      &m_thread,
+      SLOT(databaseClose(TsSqlDatabaseImpl*, DatabaseHandle)),
+      Qt::BlockingQueuedConnection);
+   connect(
+      this,
       SIGNAL(databaseIsOpen(
          TsSqlDatabaseImpl*, 
          DatabaseHandle, 
@@ -770,19 +1059,9 @@ TsSqlDatabaseImpl::TsSqlDatabaseImpl(
       Qt::BlockingQueuedConnection);
 }
 
-void TsSqlDatabaseImpl::emitOpened()
+void TsSqlDatabaseImpl::test()
 {
-   emit opened();
-}
-
-void TsSqlDatabaseImpl::emitClosed()
-{
-   emit closed();
-}
-
-void TsSqlDatabaseImpl::emitError(const QString &errorMessage)
-{
-   emit error(errorMessage);
+   emit runTest();
 }
 
 void TsSqlDatabaseImpl::open()
@@ -792,8 +1071,17 @@ void TsSqlDatabaseImpl::open()
 
 void TsSqlDatabaseImpl::close()
 {
-   DEBUG_OUT("Closing database " << this);
    emit databaseClose(this, m_handle);
+}
+
+void TsSqlDatabaseImpl::openWaiting()
+{
+   emit databaseOpenWaiting(this, m_handle);
+}
+
+void TsSqlDatabaseImpl::closeWaiting()
+{
+   emit databaseCloseWaiting(this, m_handle);
 }
 
 bool TsSqlDatabaseImpl::isOpen()
@@ -879,7 +1167,6 @@ TsSqlTransactionImpl::TsSqlTransactionImpl(
    m_handle(0)
 {
    DEBUG_OUT("Creating new transaction");
-   m_mutex.lock();
    connect(
       this,
       SIGNAL(createTransaction(
@@ -899,6 +1186,7 @@ TsSqlTransactionImpl::TsSqlTransactionImpl(
       mode);
    DEBUG_OUT("Transaction-handle " << m_handle << " arrived for " << this);
 
+   // asynchronous connections
    connect(
       this,
       SIGNAL(transactionStart(
@@ -939,31 +1227,52 @@ TsSqlTransactionImpl::TsSqlTransactionImpl(
          TsSqlTransactionImpl *,
          TransactionHandle)),
       Qt::QueuedConnection);
-}
 
-void TsSqlTransactionImpl::emitStarted()
-{
-   emit started();
-}
-
-void TsSqlTransactionImpl::emitCommited()
-{
-   emit commited();
-}
-
-void TsSqlTransactionImpl::emitRolledBack()
-{
-   emit rolledBack();
-}
-
-void TsSqlTransactionImpl::emitError(const QString &errorMessage)
-{
-   emit error(errorMessage);
+   // synchronous connections
+   connect(
+      this,
+      SIGNAL(transactionStartWaiting(
+         TsSqlTransactionImpl *,
+         TransactionHandle)),
+      &database.m_thread,
+      SLOT(transactionStart(
+         TsSqlTransactionImpl *,
+         TransactionHandle)),
+      Qt::BlockingQueuedConnection);
+   connect(
+      this,
+      SIGNAL(transactionCommitWaiting(
+         TsSqlTransactionImpl *,
+         TransactionHandle)),
+      &database.m_thread,
+      SLOT(transactionCommit(
+         TsSqlTransactionImpl *,
+         TransactionHandle)),
+      Qt::BlockingQueuedConnection);
+   connect(
+      this,
+      SIGNAL(transactionCommitRetainingWaiting(
+         TsSqlTransactionImpl *,
+         TransactionHandle)),
+      &database.m_thread,
+      SLOT(transactionCommitRetaining(
+         TsSqlTransactionImpl *,
+         TransactionHandle)),
+      Qt::BlockingQueuedConnection);
+   connect(
+      this,
+      SIGNAL(transactionRollBackWaiting(
+         TsSqlTransactionImpl *,
+         TransactionHandle)),
+      &database.m_thread,
+      SLOT(transactionRollBack(
+         TsSqlTransactionImpl *,
+         TransactionHandle)),
+      Qt::BlockingQueuedConnection);
 }
 
 void TsSqlTransactionImpl::start()
 {
-   DEBUG_OUT("Starting transaction " << this);
    emit transactionStart(
       this,
       m_handle);
@@ -971,7 +1280,6 @@ void TsSqlTransactionImpl::start()
 
 void TsSqlTransactionImpl::commit()
 {
-   DEBUG_OUT("Commiting transaction " << this);
    emit transactionCommit(
       this,
       m_handle);
@@ -979,7 +1287,6 @@ void TsSqlTransactionImpl::commit()
 
 void TsSqlTransactionImpl::commitRetaining()
 {
-   DEBUG_OUT("Commiting transaction retainingly " << this);
    emit transactionCommitRetaining(
       this,
       m_handle);
@@ -987,8 +1294,35 @@ void TsSqlTransactionImpl::commitRetaining()
 
 void TsSqlTransactionImpl::rollBack()
 {
-   DEBUG_OUT("Rolling back transaction " << this);
    emit transactionRollBack(
+      this,
+      m_handle);
+}
+
+void TsSqlTransactionImpl::startWaiting()
+{
+   emit transactionStartWaiting(
+      this,
+      m_handle);
+}
+
+void TsSqlTransactionImpl::commitWaiting()
+{
+   emit transactionCommitWaiting(
+      this,
+      m_handle);
+}
+
+void TsSqlTransactionImpl::commitRetainingWaiting()
+{
+   emit transactionCommitRetainingWaiting(
+      this,
+      m_handle);
+}
+
+void TsSqlTransactionImpl::rollBackWaiting()
+{
+   emit transactionRollBackWaiting(
       this,
       m_handle);
 }
@@ -1001,10 +1335,10 @@ bool TsSqlTransactionImpl::isStarted()
 TsSqlStatementImpl::TsSqlStatementImpl(
    TsSqlDatabaseImpl &database,
    TsSqlTransactionImpl &transaction):
-   m_handle(0)
+   m_handle(0),
+   m_stopFetching(false)
 {
    DEBUG_OUT("Creating new statement");
-   m_mutex.lock();
    connect(
       this,
       SIGNAL(createStatement(
@@ -1027,30 +1361,86 @@ TsSqlStatementImpl::TsSqlStatementImpl(
    connectSignals(&database.m_thread);
 }
 
+void TsSqlStatementImpl::fetchDataset(const TsSqlRow &row)
+{
+   emit fetched(row);
+   emit statementFetchNext(
+      this,
+      m_handle);
+}
+
 void TsSqlStatementImpl::connectSignals(QObject *receiver)
 {
+   /* asynchronous connections */
    connect(
       this,
-      SIGNAL(statementExecute(
+      SIGNAL(statementPrepare(
          TsSqlStatementImpl *,
-         StatementHandle)),
+         StatementHandle,
+         QString)),
       receiver,
-      SLOT(statementExecute(
+      SLOT(statementPrepare(
          TsSqlStatementImpl *,
-         StatementHandle)),
+         StatementHandle,
+         QString)),
       Qt::QueuedConnection);
    connect(
       this,
       SIGNAL(statementExecute(
          TsSqlStatementImpl *,
          StatementHandle,
-         QString)),
+         bool)),
       receiver,
       SLOT(statementExecute(
          TsSqlStatementImpl *,
          StatementHandle,
-         QString)),
+         bool)),
       Qt::QueuedConnection);
+   connect(
+      this,
+      SIGNAL(statementExecute(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         QString,
+         bool)),
+      receiver,
+      SLOT(statementExecute(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         QString,
+         bool)),
+      Qt::QueuedConnection);
+   connect(
+      this,
+      SIGNAL(statementExecute(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         TsSqlRow,
+         bool)),
+      receiver,
+      SLOT(statementExecute(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         TsSqlRow,
+         bool)),
+      Qt::QueuedConnection);
+   connect(
+      this,
+      SIGNAL(statementExecute(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         QString,
+         TsSqlRow,
+         bool)),
+      receiver,
+      SLOT(statementExecute(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         QString,
+         TsSqlRow,
+         bool)),
+      Qt::QueuedConnection);
+
    connect(
       this,
       SIGNAL(statementStartFetch(
@@ -1061,6 +1451,109 @@ void TsSqlStatementImpl::connectSignals(QObject *receiver)
          TsSqlStatementImpl *,
          StatementHandle)),
       Qt::QueuedConnection);
+
+   /* synchronous connections */
+   connect(
+      this,
+      SIGNAL(statementPrepareWaiting(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         QString)),
+      receiver,
+      SLOT(statementPrepare(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         QString)),
+      Qt::BlockingQueuedConnection);
+   connect(
+      this,
+      SIGNAL(statementExecuteWaiting(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         bool)),
+      receiver,
+      SLOT(statementExecute(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         bool)),
+      Qt::BlockingQueuedConnection);
+   connect(
+      this,
+      SIGNAL(statementExecuteWaiting(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         QString,
+         bool)),
+      receiver,
+      SLOT(statementExecute(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         QString,
+         bool)),
+      Qt::BlockingQueuedConnection);
+   connect(
+      this,
+      SIGNAL(statementExecuteWaiting(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         TsSqlRow,
+         bool)),
+      receiver,
+      SLOT(statementExecute(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         TsSqlRow,
+         bool)),
+      Qt::BlockingQueuedConnection);
+   connect(
+      this,
+      SIGNAL(statementExecuteWaiting(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         QString,
+         TsSqlRow,
+         bool)),
+      receiver,
+      SLOT(statementExecute(
+         TsSqlStatementImpl *,
+         StatementHandle,
+         QString,
+         TsSqlRow,
+         bool)),
+      Qt::BlockingQueuedConnection);
+   connect(
+      this,
+      SIGNAL(statementSetParam(
+         StatementHandle,
+         int,
+         QVariant)),
+      receiver,
+      SLOT(statementSetParam(
+         StatementHandle,
+         int,
+         QVariant)),
+      Qt::BlockingQueuedConnection);
+   connect(
+      this,
+      SIGNAL(statementFetchNext(
+         TsSqlStatementImpl *,
+         StatementHandle)),
+      receiver,
+      SLOT(statementFetchNext(
+         TsSqlStatementImpl *,
+         StatementHandle)),
+      Qt::QueuedConnection);
+   connect(
+      this,
+      SIGNAL(statementFetchSingleRow(
+         StatementHandle,
+         TsSqlRow *)),
+      receiver,
+      SLOT(statementFetchSingleRow(
+         StatementHandle,
+         TsSqlRow *)),
+      Qt::BlockingQueuedConnection);
+
    connect(
       this,
       SIGNAL(statementInfo(
@@ -1086,49 +1579,67 @@ TsSqlStatementImpl::TsSqlStatementImpl(
 {
 }
 
-void TsSqlStatementImpl::emitPrepared()
-{
-   emit prepared();
-}
-
-void TsSqlStatementImpl::emitExecuted()
-{
-   emit executed();
-}
-
-void TsSqlStatementImpl::emitFetchStarted()
-{
-   emit fetchStarted();
-}
-
-void TsSqlStatementImpl::emitFetched(TsSqlRow row)
-{
-   emit fetched(row);
-}
-
-void TsSqlStatementImpl::emitFetchFinished()
-{
-   emit fetchFinished();
-}
-
-void TsSqlStatementImpl::emitError(const QString &errorMessage)
-{
-   emit error(errorMessage);
-}
-
 void TsSqlStatementImpl::prepare(const QString &sql)
 {
    emit statementPrepare(this, m_handle, sql);
 }
 
-void TsSqlStatementImpl::execute(const QString &sql)
+void TsSqlStatementImpl::execute(bool startFetch)
 {
-   emit statementExecute(this, m_handle, sql);
+   emit statementExecute(this, m_handle, startFetch);
 }
 
-void TsSqlStatementImpl::execute()
+void TsSqlStatementImpl::execute(const QString &sql, bool startFetch)
 {
-   emit statementExecute(this, m_handle);
+   emit statementExecute(this, m_handle, sql, startFetch);
+}
+
+void TsSqlStatementImpl::execute(const TsSqlRow &params, bool startFetch)
+{
+   emit statementExecute(this, m_handle, params, startFetch);
+}
+
+void TsSqlStatementImpl::execute(
+   const QString &sql, 
+   const TsSqlRow &params,
+   bool startFetch)
+{
+   emit statementExecute(this, m_handle, sql, params, startFetch);
+}
+
+void TsSqlStatementImpl::prepareWaiting(const QString &sql)
+{
+   emit statementPrepareWaiting(this, m_handle, sql);
+}
+
+void TsSqlStatementImpl::executeWaiting()
+{
+   emit statementExecuteWaiting(this, m_handle, false);
+}
+
+void TsSqlStatementImpl::executeWaiting(const QString &sql)
+{
+   emit statementExecuteWaiting(this, m_handle, sql, false);
+}
+
+void TsSqlStatementImpl::executeWaiting(const TsSqlRow &params)
+{
+   emit statementExecuteWaiting(this, m_handle, params, false);
+}
+
+void TsSqlStatementImpl::executeWaiting(
+   const QString &sql, 
+   const TsSqlRow &params)
+{
+   emit statementExecuteWaiting(this, m_handle, sql, params, false);
+}
+
+void TsSqlStatementImpl::setParam(int column, const QVariant &param)
+{
+   emit statementSetParam(
+      m_handle,
+      column,
+      param);
 }
 
 QString TsSqlStatementImpl::sql()
@@ -1149,6 +1660,19 @@ int TsSqlStatementImpl::affectedRows()
 void TsSqlStatementImpl::fetch()
 {
    emit statementStartFetch(this, m_handle);
+}
+
+bool TsSqlStatementImpl::fetchRow(TsSqlRow &row)
+{
+   emit statementFetchSingleRow(m_handle, &row);
+   return row.size() > 0;
+}
+
+void TsSqlStatementImpl::stopFetching()
+{
+   m_stopFetchingMutex.lock();
+   m_stopFetching = true;
+   m_stopFetchingMutex.unlock();
 }
 
 int TsSqlStatementImpl::columnCount()
@@ -1266,6 +1790,7 @@ namespace
       TsSqlMetaTypeInitializer()
       {
          qRegisterMetaType<QVariant>();
+
          qRegisterMetaType<DatabaseHandle>();
          qRegisterMetaType<TransactionHandle>();
          qRegisterMetaType<StatementHandle>();

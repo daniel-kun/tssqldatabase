@@ -1,10 +1,9 @@
-#ifndef DATABASE_P_H_27_08_2008
-#define DATABASE_P_H_27_08_2008
+#ifndef TS_DATABASE_P_H_27_08_2008
+#define TS_DATABASE_P_H_27_08_2008
 #include "database.h"
 
 #include <QThread>
 #include <QMutex>
-#include <QWaitCondition>
 
 // These fakes are necessary so the Qt meta-object system
 // can distinguish the handle-types.
@@ -61,7 +60,7 @@ class TsSqlThreadEmitter: public QObject
       void emitStatementPrepared();
       void emitStatementExecuted();
       void emitStatementFetchStarted();
-      void emitStatementFetched(TsSqlRow row);
+      void emitStatementFetched(const TsSqlRow &row);
       void emitStatementFetchFinished();
 
       void emitError(const QString  &errorMessage);
@@ -89,14 +88,16 @@ class TsSqlDatabaseThread: public QThread
       std::vector<DatabaseHandle>    m_databaseHandles;
       std::vector<TransactionHandle> m_transactionHandles;
       std::vector<StatementHandle>   m_statementHandles;
-      QMutex &m_mutex;
 
+      void readRow(StatementHandle statement, TsSqlRow &row);
       void emitStatementRow(TsSqlStatementImpl *receiver, StatementHandle statement);
+      void setParams(StatementHandle statement, const TsSqlRow &params);
    protected:
       virtual void run();
    public:
-      TsSqlDatabaseThread(QMutex &mutex);
+      TsSqlDatabaseThread();
    public slots:
+      void test();
       void createDatabase(
          class TsSqlDatabaseImpl *object,
          const QString &server,
@@ -154,23 +155,47 @@ class TsSqlDatabaseThread: public QThread
          const QString &sql);
       void statementExecute(
          TsSqlStatementImpl *object,
-         StatementHandle handle);
+         StatementHandle handle,
+         bool startFetch);
       void statementExecute(
          TsSqlStatementImpl *object,
          StatementHandle handle,
-         const QString &sql);
+         const QString &sql,
+         bool startFetch);
+      void statementExecute(
+         TsSqlStatementImpl *object,
+         StatementHandle handle,
+         const TsSqlRow &params,
+         bool startFetch);
+      void statementExecute(
+         TsSqlStatementImpl *object,
+         StatementHandle handle,
+         const QString &sql,
+         const TsSqlRow &params,
+         bool startFetch);
+      void statementSetParam(
+         StatementHandle handle,
+         int column,
+         QVariant param);
       void statementStartFetch(
          TsSqlStatementImpl *object,
          StatementHandle handle);
       void statementFetchNext(
          TsSqlStatementImpl *object,
          StatementHandle handle);
+      void statementFetchSingleRow(
+         StatementHandle handle,
+         TsSqlRow *result);
       void statementInfo(
          TsSqlStatementImpl *object, 
          StatementHandle handle, 
          StatementInfo info,
          QVariant param,
          QVariant *result);
+   signals:
+      void emitStatementFetchNext(
+         TsSqlStatementImpl *object,
+         StatementHandle handle);
 };
 
 class TsSqlDatabaseImpl: public QObject
@@ -178,15 +203,10 @@ class TsSqlDatabaseImpl: public QObject
    Q_OBJECT
    private:
       DatabaseHandle m_handle;
-      QMutex m_mutex;
       TsSqlDatabaseThread m_thread;
       friend class TsSqlDatabaseThread;
       friend class TsSqlTransactionImpl;
       friend class TsSqlStatementImpl;
-   private slots:
-      void emitOpened();
-      void emitClosed();
-      void emitError(const QString  &errorMessage);
    public:
       TsSqlDatabaseImpl(
          const QString &server,
@@ -197,8 +217,11 @@ class TsSqlDatabaseImpl: public QObject
          const QString &role,
          const QString &createParams);
       ~TsSqlDatabaseImpl();
-      void open();       // async
-      void close();      // async
+      void test();          // some test-functions for development, only
+      void open();          // async
+      void close();         // async
+      void openWaiting();   // sync
+      void closeWaiting();  // sync
       bool isOpen();
       QString server();
       QString database();
@@ -210,6 +233,7 @@ class TsSqlDatabaseImpl: public QObject
       QVector<QString> connectedUsers();
    signals:
       /* These signals are used for internal communication */
+      void runTest();
       void createHandle(
          TsSqlDatabaseImpl *object,
          const QString &server,
@@ -221,6 +245,8 @@ class TsSqlDatabaseImpl: public QObject
          const QString &createParams);
       void databaseOpen(TsSqlDatabaseImpl *object, DatabaseHandle handle);
       void databaseClose(TsSqlDatabaseImpl *object, DatabaseHandle handle);
+      void databaseOpenWaiting(TsSqlDatabaseImpl *object, DatabaseHandle handle);
+      void databaseCloseWaiting(TsSqlDatabaseImpl *object, DatabaseHandle handle);
       void databaseIsOpen(TsSqlDatabaseImpl*object, DatabaseHandle handle, bool *result);
       void databaseInfo(
          TsSqlDatabaseImpl *object, 
@@ -243,20 +269,20 @@ class TsSqlTransactionImpl: public QObject
    Q_OBJECT
    private:
       TransactionHandle m_handle;
-      QMutex m_mutex;
-      QWaitCondition m_waiter;
       friend class TsSqlStatementImpl;
-   private slots:
-      void emitStarted();
-      void emitCommited();
-      void emitRolledBack();
-      void emitError(const QString  &errorMessage);
    public:
       TsSqlTransactionImpl(TsSqlDatabaseImpl &database, TsSqlTransaction::TransactionMode mode);
-      void start();               // async
-      void commit();              // async
-      void commitRetaining();
-      void rollBack();            // async
+
+      void start();                  // async
+      void commit();                 // async
+      void commitRetaining();        // async
+      void rollBack();               // async
+
+      void startWaiting();           // sync
+      void commitWaiting();          // sync
+      void commitRetainingWaiting(); // sync
+      void rollBackWaiting();        // sync
+
       bool isStarted();
       friend class TsSqlDatabaseThread;
    signals:
@@ -276,6 +302,18 @@ class TsSqlTransactionImpl: public QObject
       void transactionRollBack(
          TsSqlTransactionImpl *object,
          TransactionHandle handle);
+      void transactionStartWaiting(
+         TsSqlTransactionImpl *object,
+         TransactionHandle handle);
+      void transactionCommitWaiting(
+         TsSqlTransactionImpl *object,
+         TransactionHandle handle);
+      void transactionCommitRetainingWaiting(
+         TsSqlTransactionImpl *object,
+         TransactionHandle handle);
+      void transactionRollBackWaiting(
+         TsSqlTransactionImpl *object,
+         TransactionHandle handle);
 
       void started();
       void commited();
@@ -287,18 +325,13 @@ class TsSqlStatementImpl: public QObject
 {
    Q_OBJECT
    private:
-      QMutex m_mutex;
-      QWaitCondition m_waiter;
       StatementHandle m_handle;
+      QMutex m_stopFetchingMutex;
+      bool m_stopFetching;
       void connectSignals(QObject *receiver);
       friend class TsSqlDatabaseThread;
    private slots:
-      void emitPrepared();
-      void emitExecuted();
-      void emitFetchStarted();
-      void emitFetched(TsSqlRow row);
-      void emitFetchFinished();
-      void emitError(const QString  &errorMessage);
+      void fetchDataset(const TsSqlRow &row);
    public:
       TsSqlStatementImpl(
          TsSqlDatabaseImpl &database, 
@@ -307,13 +340,32 @@ class TsSqlStatementImpl: public QObject
          TsSqlDatabaseImpl &database, 
          TsSqlTransactionImpl &transaction, 
          const QString &sql);
+
       void prepare(const QString &sql); // async
-      void execute(const QString &sql); // async
-      void execute();                   // async
+      void execute(bool startFetch);                         // async
+      void execute(const QString &sql, bool startFetch);     // async
+      void execute(const TsSqlRow &params, bool startFetch); // async
+      void execute(
+         const QString &sql, 
+         const TsSqlRow &params, 
+         bool startFetch); // async
+
+      void prepareWaiting(const QString &sql); // async
+      void executeWaiting();                         // async
+      void executeWaiting(const QString &sql);     // async
+      void executeWaiting(const TsSqlRow &params); // async
+      void executeWaiting(
+         const QString &sql, 
+         const TsSqlRow &params); // async
+
+      void setParam(int column, const QVariant &param); // sync
+
       QString sql();
       QString plan();
       int affectedRows();
-      void fetch(); // async
+      void fetch();                 // async
+      bool fetchRow(TsSqlRow &row); // sync
+      void stopFetching();          // async
 
       int        columnCount();
       QString    columnName(   int columnIndex);
@@ -334,20 +386,70 @@ class TsSqlStatementImpl: public QObject
          DatabaseHandle database, 
          TransactionHandle transaction,
          QString sql);
+
       void statementPrepare(
          TsSqlStatementImpl *object,
          StatementHandle handle,
          const QString &sql);
       void statementExecute(
          TsSqlStatementImpl *object,
-         StatementHandle handle);
+         StatementHandle handle,
+         bool startFetch);
       void statementExecute(
          TsSqlStatementImpl *object,
          StatementHandle handle,
+         const QString &sql,
+         bool startFetch);
+      void statementExecute(
+         TsSqlStatementImpl *object,
+         StatementHandle handle,
+         const TsSqlRow &params,
+         bool startFetch);
+      void statementExecute(
+         TsSqlStatementImpl *object,
+         StatementHandle handle,
+         const QString &sql,
+         const TsSqlRow &params,
+         bool startFetch);
+
+      void statementPrepareWaiting(
+         TsSqlStatementImpl *object,
+         StatementHandle handle,
          const QString &sql);
+      void statementExecuteWaiting(
+         TsSqlStatementImpl *object,
+         StatementHandle handle,
+         bool startFetch);
+      void statementExecuteWaiting(
+         TsSqlStatementImpl *object,
+         StatementHandle handle,
+         const QString &sql,
+         bool startFetch);
+      void statementExecuteWaiting(
+         TsSqlStatementImpl *object,
+         StatementHandle handle,
+         const TsSqlRow &params,
+         bool startFetch);
+      void statementExecuteWaiting(
+         TsSqlStatementImpl *object,
+         StatementHandle handle,
+         const QString &sql,
+         const TsSqlRow &params,
+         bool startFetch);
+      void statementSetParam(
+         StatementHandle handle,
+         int column,
+         QVariant param);
+
       void statementStartFetch(
          TsSqlStatementImpl *object,
          StatementHandle handle);
+      void statementFetchNext(
+         TsSqlStatementImpl *object,
+         StatementHandle handle);
+      void statementFetchSingleRow(
+         StatementHandle handle,
+         TsSqlRow *result);
       void statementInfo(
          TsSqlStatementImpl *object, 
          StatementHandle handle, 
