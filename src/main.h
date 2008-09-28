@@ -46,6 +46,8 @@ class DatabaseTest: public QWidget
       void fetchFinished();
 
       void exitApplication();
+
+      void displayError(const QString &errorMessage);
 };
 
 #endif

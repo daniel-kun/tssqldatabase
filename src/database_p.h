@@ -58,10 +58,13 @@ class TsSqlThreadEmitter: public QObject
       void emitTransactionCommited();
       void emitTransactionRolledBack();
 
+      void emitStatementPrepared();
       void emitStatementExecuted();
       void emitStatementFetchStarted();
       void emitStatementFetched(TsSqlRow row);
       void emitStatementFetchFinished();
+
+      void emitError(const QString  &errorMessage);
    signals:
       void databaseOpened();
       void databaseClosed();
@@ -70,10 +73,13 @@ class TsSqlThreadEmitter: public QObject
       void transactionCommited();
       void transactionRolledBack();
 
+      void statementPrepared();
       void statementExecuted();
       void statementFetchStarted();
       void statementFetched(TsSqlRow);
       void statementFetchFinished();
+
+      void error(QString);
 };
 
 class TsSqlDatabaseThread: public QThread
@@ -83,13 +89,13 @@ class TsSqlDatabaseThread: public QThread
       std::vector<DatabaseHandle>    m_databaseHandles;
       std::vector<TransactionHandle> m_transactionHandles;
       std::vector<StatementHandle>   m_statementHandles;
-      QWaitCondition &m_waiter;
+      QMutex &m_mutex;
 
       void emitStatementRow(TsSqlStatementImpl *receiver, StatementHandle statement);
    protected:
       virtual void run();
    public:
-      TsSqlDatabaseThread(QWaitCondition &waiter);
+      TsSqlDatabaseThread(QMutex &mutex);
    public slots:
       void createDatabase(
          class TsSqlDatabaseImpl *object,
@@ -142,6 +148,10 @@ class TsSqlDatabaseThread: public QThread
          DatabaseHandle database, 
          TransactionHandle transaction,
          QString sql);
+      void statementPrepare(
+         TsSqlStatementImpl *object,
+         StatementHandle handle,
+         const QString &sql);
       void statementExecute(
          TsSqlStatementImpl *object,
          StatementHandle handle);
@@ -169,7 +179,6 @@ class TsSqlDatabaseImpl: public QObject
    private:
       DatabaseHandle m_handle;
       QMutex m_mutex;
-      QWaitCondition m_waiter;
       TsSqlDatabaseThread m_thread;
       friend class TsSqlDatabaseThread;
       friend class TsSqlTransactionImpl;
@@ -177,6 +186,7 @@ class TsSqlDatabaseImpl: public QObject
    private slots:
       void emitOpened();
       void emitClosed();
+      void emitError(const QString  &errorMessage);
    public:
       TsSqlDatabaseImpl(
          const QString &server,
@@ -240,6 +250,7 @@ class TsSqlTransactionImpl: public QObject
       void emitStarted();
       void emitCommited();
       void emitRolledBack();
+      void emitError(const QString  &errorMessage);
    public:
       TsSqlTransactionImpl(TsSqlDatabaseImpl &database, TsSqlTransaction::TransactionMode mode);
       void start();               // async
@@ -269,6 +280,7 @@ class TsSqlTransactionImpl: public QObject
       void started();
       void commited();
       void rolledBack();
+      void error(const QString &error);
 };
 
 class TsSqlStatementImpl: public QObject
@@ -281,10 +293,12 @@ class TsSqlStatementImpl: public QObject
       void connectSignals(QObject *receiver);
       friend class TsSqlDatabaseThread;
    private slots:
+      void emitPrepared();
       void emitExecuted();
       void emitFetchStarted();
       void emitFetched(TsSqlRow row);
       void emitFetchFinished();
+      void emitError(const QString  &errorMessage);
    public:
       TsSqlStatementImpl(
          TsSqlDatabaseImpl &database, 
@@ -320,6 +334,10 @@ class TsSqlStatementImpl: public QObject
          DatabaseHandle database, 
          TransactionHandle transaction,
          QString sql);
+      void statementPrepare(
+         TsSqlStatementImpl *object,
+         StatementHandle handle,
+         const QString &sql);
       void statementExecute(
          TsSqlStatementImpl *object,
          StatementHandle handle);
@@ -337,10 +355,12 @@ class TsSqlStatementImpl: public QObject
          QVariant param,
          QVariant *result);
 
+      void prepared();
       void executed();
       void fetchStarted();
       void fetched(TsSqlRow row);
       void fetchFinished();
+      void error(const QString &error);
 };
 
 Q_DECLARE_METATYPE(DatabaseHandle);

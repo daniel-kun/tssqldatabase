@@ -7,12 +7,13 @@
 #include "database_p.h"
 
 #define EMIT_ASYNC(object, signal) { TsSqlThreadEmitter emitter(object); emitter.signal(); }
+#define EMIT_ERROR(object, errorMessage) {TsSqlThreadEmitter emitter(object); emitter.emitError(errorMessage); }
+
 #define DEBUG_RECEIVE(message) DEBUG_OUT(message)
 
 #define DBHANDLE(handle) (*reinterpret_cast<IBPP::Database*>   (handle))
 #define TRHANDLE(handle) (*reinterpret_cast<IBPP::Transaction*>(handle))
 #define STHANDLE(handle) (*reinterpret_cast<IBPP::Statement*>  (handle))
-#define CHECK_DEADLOCK   usleep(1000000); if (!m_waiter.wait(&m_mutex, 1000)) DEBUG_OUT("Deadlock detected")
 
 TsSqlThreadEmitter::TsSqlThreadEmitter(QObject *object):
    m_object(object)
@@ -49,6 +50,12 @@ void TsSqlThreadEmitter::emitTransactionRolledBack()
    emit transactionRolledBack();
 }
 
+void TsSqlThreadEmitter::emitStatementPrepared()
+{
+   connect(this, SIGNAL(statementPrepared()), m_object, SLOT(emitPrepared()), Qt::QueuedConnection);
+   emit statementPrepared();
+}
+
 void TsSqlThreadEmitter::emitStatementExecuted()
 {
    connect(this, SIGNAL(statementExecuted()), m_object, SLOT(emitExecuted()), Qt::QueuedConnection);
@@ -73,8 +80,14 @@ void TsSqlThreadEmitter::emitStatementFetchFinished()
    emit statementFetchFinished();
 }
 
-TsSqlDatabaseThread::TsSqlDatabaseThread(QWaitCondition &waiter):
-   m_waiter(waiter)
+void TsSqlThreadEmitter::emitError(const QString &errorMessage)
+{
+   connect(this, SIGNAL(error(QString)), m_object, SLOT(emitError(QString)), Qt::QueuedConnection);
+   emit error(errorMessage);
+}
+
+TsSqlDatabaseThread::TsSqlDatabaseThread(QMutex &mutex):
+   m_mutex(mutex)
 {
    // Send fetch-next signals queued so other commands can be processed
    // in the meantime.
@@ -93,7 +106,7 @@ TsSqlDatabaseThread::TsSqlDatabaseThread(QWaitCondition &waiter):
 void TsSqlDatabaseThread::run()
 {
    DEBUG_OUT("New thread " << this << " is running");
-   m_waiter.wakeAll();
+   m_mutex.unlock();
    QThread::run();
    DEBUG_OUT("Thread is stopping");
 }
@@ -122,22 +135,33 @@ void TsSqlDatabaseThread::createDatabase(
                createParams.toStdString())));
    m_databaseHandles.push_back(handle);
    object->m_handle = handle;
-   object->m_waiter.wakeAll();
    DEBUG_OUT("Database-handle " << handle << " created for object " << object);
 }
 
 void TsSqlDatabaseThread::databaseOpen(TsSqlDatabaseImpl *object, DatabaseHandle handle)
 {
    DEBUG_RECEIVE("Received open request from " << object << " for database " << handle);
-   DBHANDLE(handle)->Connect();
-   EMIT_ASYNC(object, emitDatabaseOpened);
+   try
+   {
+      DBHANDLE(handle)->Connect();
+      EMIT_ASYNC(object, emitDatabaseOpened);
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what());
+   }
 }
 
 void TsSqlDatabaseThread::databaseClose(TsSqlDatabaseImpl *object, DatabaseHandle handle)
 {
    DEBUG_RECEIVE("Received close request from " << object << " for database " << handle);
-   DBHANDLE(handle)->Disconnect();
-   EMIT_ASYNC(object, emitDatabaseClosed);
+   try
+   {
+      DBHANDLE(handle)->Disconnect();
+      EMIT_ASYNC(object, emitDatabaseClosed);
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what())
+   }
 }
 
 void TsSqlDatabaseThread::databaseIsOpen(
@@ -146,8 +170,13 @@ void TsSqlDatabaseThread::databaseIsOpen(
    bool *result)
 {
    DEBUG_RECEIVE("Received isOpen request from " << object << " for database " << handle);
-   *result = DBHANDLE(handle)->Connected();
-   object->m_waiter.wakeAll();
+   try
+   {
+      *result = DBHANDLE(handle)->Connected();
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what())
+   }
 }
 
 void TsSqlDatabaseThread::databaseInfo(
@@ -157,33 +186,38 @@ void TsSqlDatabaseThread::databaseInfo(
    QString *result)
 {
    DEBUG_RECEIVE("Received databaseInfo(" << info << ") request from " << object << " for database " << handle);
-   switch(info)
+   try
    {
-      case diServer:
-         *result = QString::fromStdString(DBHANDLE(handle)->ServerName());
-         break;
-      case diDatabase:
-         *result = QString::fromStdString(DBHANDLE(handle)->DatabaseName());
-         break;
-      case diUser:
-         *result = QString::fromStdString(DBHANDLE(handle)->Username());
-         break;
-      case diPassword:
-         *result = QString::fromStdString(DBHANDLE(handle)->UserPassword());
-         break;
-      case diCharacterSet:
-         *result = QString::fromStdString(DBHANDLE(handle)->CharSet());
-         break;
-      case diRole:
-         *result = QString::fromStdString(DBHANDLE(handle)->RoleName());
-         break;
-      case diCreateParams:
-         *result = QString::fromStdString(DBHANDLE(handle)->CreateParams());
-         break;
-      default:
-         *result = QString();
+      switch(info)
+      {
+         case diServer:
+            *result = QString::fromStdString(DBHANDLE(handle)->ServerName());
+            break;
+         case diDatabase:
+            *result = QString::fromStdString(DBHANDLE(handle)->DatabaseName());
+            break;
+         case diUser:
+            *result = QString::fromStdString(DBHANDLE(handle)->Username());
+            break;
+         case diPassword:
+            *result = QString::fromStdString(DBHANDLE(handle)->UserPassword());
+            break;
+         case diCharacterSet:
+            *result = QString::fromStdString(DBHANDLE(handle)->CharSet());
+            break;
+         case diRole:
+            *result = QString::fromStdString(DBHANDLE(handle)->RoleName());
+            break;
+         case diCreateParams:
+            *result = QString::fromStdString(DBHANDLE(handle)->CreateParams());
+            break;
+         default:
+            *result = QString();
+      }
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what());
    }
-   object->m_waiter.wakeAll();
 }
 
 void TsSqlDatabaseThread::databaseConnectedUsers(
@@ -193,13 +227,18 @@ void TsSqlDatabaseThread::databaseConnectedUsers(
 {
    DEBUG_RECEIVE("Received connected users request from " << object << " for database " << handle);
    std::vector<std::string> users;
-   DBHANDLE(handle)->Users(users);
-   result->clear();
-   for(std::vector<std::string>::const_iterator i = users.begin();
-       i != users.end();
-       ++i)
-      result->push_back(QString::fromStdString(*i));
-   object->m_waiter.wakeAll();
+   try
+   {
+      DBHANDLE(handle)->Users(users);
+      result->clear();
+      for(std::vector<std::string>::const_iterator i = users.begin();
+            i != users.end();
+            ++i)
+         result->push_back(QString::fromStdString(*i));
+   } catch(std::exception  &e)
+   {
+      EMIT_ERROR(object, e.what());
+   }
 }
 
 void TsSqlDatabaseThread::createTransaction(
@@ -217,14 +256,20 @@ void TsSqlDatabaseThread::createTransaction(
       default:
          ibppMode = IBPP::amWrite;
    }
-   TransactionHandle transaction = 
-      reinterpret_cast<TransactionHandle>(
-         new IBPP::Transaction(
-            IBPP::TransactionFactory(
-               DBHANDLE(database),
-               ibppMode)));
-   object->m_handle = transaction;
-   object->m_waiter.wakeAll();
+   try
+   {
+      TransactionHandle transaction = 
+         reinterpret_cast<TransactionHandle>(
+               new IBPP::Transaction(
+                  IBPP::TransactionFactory(
+                     DBHANDLE(database),
+                     ibppMode)));
+      object->m_handle = transaction;
+   } catch(std::exception &e)
+   {
+      object->m_handle = 0;
+      EMIT_ERROR(object, e.what());
+   }
 }
 
 void TsSqlDatabaseThread::transactionStart(
@@ -232,8 +277,14 @@ void TsSqlDatabaseThread::transactionStart(
    TransactionHandle handle)
 {
    DEBUG_OUT("Requested transaction start from " << object << " for " << handle);
-   TRHANDLE(handle)->Start();
-   EMIT_ASYNC(object, emitTransactionStarted);
+   try
+   {
+      TRHANDLE(handle)->Start();
+      EMIT_ASYNC(object, emitTransactionStarted);
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what());
+   }
 }
 
 void TsSqlDatabaseThread::transactionCommit(
@@ -241,8 +292,14 @@ void TsSqlDatabaseThread::transactionCommit(
    TransactionHandle handle)
 {
    DEBUG_OUT("Requested transaction commit from " << object << " for " << handle);
-   TRHANDLE(handle)->Commit();
-   EMIT_ASYNC(object, emitTransactionCommited);
+   try
+   {
+      TRHANDLE(handle)->Commit();
+      EMIT_ASYNC(object, emitTransactionCommited);
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what());
+   }
 }
 
 void TsSqlDatabaseThread::transactionCommitRetaining(
@@ -250,9 +307,15 @@ void TsSqlDatabaseThread::transactionCommitRetaining(
    TransactionHandle handle)
 {
    DEBUG_OUT("Requested transaction retaining commit from " << object << " for " << handle);
-   TRHANDLE(handle)->CommitRetain();
-   EMIT_ASYNC(object, emitTransactionCommited);
-   EMIT_ASYNC(object, emitTransactionStarted);
+   try
+   {
+      TRHANDLE(handle)->CommitRetain();
+      EMIT_ASYNC(object, emitTransactionCommited);
+      EMIT_ASYNC(object, emitTransactionStarted);
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what());
+   }
 }
 
 void TsSqlDatabaseThread::transactionRollBack(
@@ -260,8 +323,14 @@ void TsSqlDatabaseThread::transactionRollBack(
    TransactionHandle handle)
 {
    DEBUG_OUT("Requested transaction rollback from " << object << " for " << handle);
-   TRHANDLE(handle)->Rollback();
-   EMIT_ASYNC(object, emitTransactionRolledBack);
+   try
+   {
+      TRHANDLE(handle)->Rollback();
+      EMIT_ASYNC(object, emitTransactionRolledBack);
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what());
+   }
 }
 
 void TsSqlDatabaseThread::createStatement(
@@ -270,14 +339,20 @@ void TsSqlDatabaseThread::createStatement(
    TransactionHandle transaction)
 {
    DEBUG_OUT("Creating statement-handle");
-   StatementHandle handle = 
-      reinterpret_cast<StatementHandle>(
-         new IBPP::Statement(
-            IBPP::StatementFactory(
-               DBHANDLE(database),
-               TRHANDLE(transaction))));
-   object->m_handle = handle;
-   object->m_waiter.wakeAll();
+   try
+   {
+      StatementHandle handle = 
+         reinterpret_cast<StatementHandle>(
+            new IBPP::Statement(
+               IBPP::StatementFactory(
+                  DBHANDLE(database),
+                  TRHANDLE(transaction))));
+      object->m_handle = handle;
+   } catch(std::exception &e)
+   {
+      object->m_handle = 0;     
+      EMIT_ERROR(object, e.what());
+   }
 }
 
 void TsSqlDatabaseThread::createStatement(
@@ -287,15 +362,37 @@ void TsSqlDatabaseThread::createStatement(
    QString sql)
 {
    DEBUG_OUT("Creating statement-handle");
-   StatementHandle handle = 
-      reinterpret_cast<StatementHandle>(
-         new IBPP::Statement(
-            IBPP::StatementFactory(
-               DBHANDLE(database),
-               TRHANDLE(transaction),
-               sql.toStdString())));
-   object->m_handle = handle;
-   object->m_waiter.wakeAll();
+   try
+   {
+      StatementHandle handle = 
+         reinterpret_cast<StatementHandle>(
+               new IBPP::Statement(
+                  IBPP::StatementFactory(
+                     DBHANDLE(database),
+                     TRHANDLE(transaction),
+                     sql.toStdString())));
+      object->m_handle = handle;
+   } catch(std::exception &e)
+   {
+      object->m_handle = 0;     
+      EMIT_ERROR(object, e.what());
+   }
+}
+
+void TsSqlDatabaseThread::statementPrepare(
+   TsSqlStatementImpl *object,
+   StatementHandle handle,
+   const QString  &sql)
+{
+   DEBUG_RECEIVE("Received prepare request from " << object << " for statement " << handle);
+   try
+   {
+      STHANDLE(handle)->Prepare(sql.toStdString());
+      EMIT_ASYNC(object, emitStatementPrepared);
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what());
+   }
 }
 
 void TsSqlDatabaseThread::statementExecute(
@@ -303,8 +400,14 @@ void TsSqlDatabaseThread::statementExecute(
    StatementHandle handle)
 {
    DEBUG_RECEIVE("Received execute request from " << object << " for statement " << handle);
-   STHANDLE(handle)->Execute();
-   EMIT_ASYNC(object, emitStatementExecuted);
+   try
+   {
+      STHANDLE(handle)->Execute();
+      EMIT_ASYNC(object, emitStatementExecuted);
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what());
+   }
 }
 
 void TsSqlDatabaseThread::statementExecute(
@@ -313,8 +416,14 @@ void TsSqlDatabaseThread::statementExecute(
    const QString &sql)
 {
    DEBUG_RECEIVE("Received execute request from " << object << " for statement " << handle);
-   STHANDLE(handle)->Execute(sql.toStdString());
-   EMIT_ASYNC(object, emitStatementExecuted);
+   try
+   {
+      STHANDLE(handle)->Execute(sql.toStdString());
+      EMIT_ASYNC(object, emitStatementExecuted);
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what());
+   }
 }
 
 void TsSqlDatabaseThread::emitStatementRow(
@@ -411,7 +520,7 @@ void TsSqlDatabaseThread::emitStatementRow(
       emit statementFetchNext(receiver, statement);
    } catch(std::exception &e)
    {
-      qDebug() << "Reading a row failed: " << e.what();
+      EMIT_ERROR(receiver, e.what());
    }
 }
 
@@ -421,23 +530,29 @@ void TsSqlDatabaseThread::statementStartFetch(
 {
    DEBUG_RECEIVE("Received start fetch request from " << object << " for statement " << handle);
 
-   if (!STHANDLE(handle)->DatabasePtr()->Connected() ||
-       !STHANDLE(handle)->TransactionPtr()->Started())
+   try
    {
-      EMIT_ASYNC(object, emitStatementFetchStarted);
-      EMIT_ASYNC(object, emitStatementFetchFinished);
-   }
-   else
-   {
-      bool atEnd = !STHANDLE(handle)->Fetch();
-      EMIT_ASYNC(object, emitStatementFetchStarted);
-      if (atEnd)
+      if (!STHANDLE(handle)->DatabasePtr()->Connected() ||
+            !STHANDLE(handle)->TransactionPtr()->Started())
       {
-         DEBUG_OUT("Finished fetching datasets for statement " << handle);
+         EMIT_ASYNC(object, emitStatementFetchStarted);
          EMIT_ASYNC(object, emitStatementFetchFinished);
       }
       else
-         emitStatementRow(object, handle);
+      {
+         bool atEnd = !STHANDLE(handle)->Fetch();
+         EMIT_ASYNC(object, emitStatementFetchStarted);
+         if (atEnd)
+         {
+            DEBUG_OUT("Finished fetching datasets for statement " << handle);
+            EMIT_ASYNC(object, emitStatementFetchFinished);
+         }
+         else
+            emitStatementRow(object, handle);
+      }
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what());
    }
 }
 
@@ -449,17 +564,23 @@ void TsSqlDatabaseThread::statementFetchNext(
 
    // Stop fetching when the transaction has been stopped or the
    // database connection is closed.
-   if (!STHANDLE(handle)->TransactionPtr()->Started() || 
-       !STHANDLE(handle)->DatabasePtr()->Connected())
+   try
    {
-      EMIT_ASYNC(object, emitStatementFetchFinished);
-   }
-   else
-   {
-      if (STHANDLE(handle)->Fetch())
-         emitStatementRow(object, handle);
-      else
+      if (!STHANDLE(handle)->TransactionPtr()->Started() || 
+            !STHANDLE(handle)->DatabasePtr()->Connected())
+      {
          EMIT_ASYNC(object, emitStatementFetchFinished);
+      }
+      else
+      {
+         if (STHANDLE(handle)->Fetch())
+            emitStatementRow(object, handle);
+         else
+            EMIT_ASYNC(object, emitStatementFetchFinished);
+      }
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what());
    }
 }
 
@@ -502,43 +623,48 @@ void TsSqlDatabaseThread::statementInfo(
 {
    DEBUG_RECEIVE("Received statement info(" << info << " request from " << object << " for statement " << handle);
    std::string temp;
-   switch(info)
+   try
    {
-      case siPlan:
-         STHANDLE(handle)->Plan(temp);
-         *result = QString::fromStdString(temp);
-         break;
-      case siColumnCount:
-         *result = STHANDLE(handle)->Columns();
-         break;
-      case siColumnName:
-         *result = QString::fromAscii(STHANDLE(handle)->ColumnName(param.toInt()));
-         break;
-      case siColumnIndex:
-         *result = STHANDLE(handle)->ColumnNum(param.toString().toStdString());
-         break;
-      case siColumnAlias:
-         *result = QString::fromAscii(STHANDLE(handle)->ColumnAlias(param.toInt()));
-         break;
-      case siColumnTable:
-         *result = QString::fromAscii(STHANDLE(handle)->ColumnTable(param.toInt()));
-         break;
-      case siColumnType:
-         *result = static_cast<int>(ibppTypeToTs(STHANDLE(handle)->ColumnType(param.toInt())));
-         break;
-      case siColumnSubType:
-         *result = STHANDLE(handle)->ColumnSubtype(param.toInt());
-         break;
-      case siColumnSize:
-         *result = STHANDLE(handle)->ColumnSize(param.toInt());
-         break;
-      case siColumnScale:
-         *result = STHANDLE(handle)->ColumnScale(param.toInt());
-         break;
-      default:
-         DEBUG_OUT("Unknown statement info(" << info << ") requested!");
+      switch(info)
+      {
+         case siPlan:
+            STHANDLE(handle)->Plan(temp);
+            *result = QString::fromStdString(temp);
+            break;
+         case siColumnCount:
+            *result = STHANDLE(handle)->Columns();
+            break;
+         case siColumnName:
+            *result = QString::fromAscii(STHANDLE(handle)->ColumnName(param.toInt()));
+            break;
+         case siColumnIndex:
+            *result = STHANDLE(handle)->ColumnNum(param.toString().toStdString());
+            break;
+         case siColumnAlias:
+            *result = QString::fromAscii(STHANDLE(handle)->ColumnAlias(param.toInt()));
+            break;
+         case siColumnTable:
+            *result = QString::fromAscii(STHANDLE(handle)->ColumnTable(param.toInt()));
+            break;
+         case siColumnType:
+            *result = static_cast<int>(ibppTypeToTs(STHANDLE(handle)->ColumnType(param.toInt())));
+            break;
+         case siColumnSubType:
+            *result = STHANDLE(handle)->ColumnSubtype(param.toInt());
+            break;
+         case siColumnSize:
+            *result = STHANDLE(handle)->ColumnSize(param.toInt());
+            break;
+         case siColumnScale:
+            *result = STHANDLE(handle)->ColumnScale(param.toInt());
+            break;
+         default:
+            DEBUG_OUT("Unknown statement info(" << info << ") requested!");
+      }
+   } catch(std::exception &e)
+   {
+      EMIT_ERROR(object, e.what());
    }
-   object->m_waiter.wakeAll();
 }
 
 TsSqlDatabaseImpl::TsSqlDatabaseImpl(
@@ -550,11 +676,11 @@ TsSqlDatabaseImpl::TsSqlDatabaseImpl(
    const QString &role,
    const QString &createParams):
    m_handle(0),
-   m_thread(m_waiter)
+   m_thread(m_mutex)
 {
    m_mutex.lock();
    m_thread.start();
-   m_waiter.wait(&m_mutex);
+   m_mutex.lock(); // wait for unlock in m_thread
    m_thread.moveToThread(&m_thread);
    DEBUG_OUT("New database object " << this);
    connect(
@@ -578,7 +704,7 @@ TsSqlDatabaseImpl::TsSqlDatabaseImpl(
             QString,
             QString,
             QString)), 
-      Qt::QueuedConnection);
+      Qt::BlockingQueuedConnection);
 
    emit createHandle(
          this,
@@ -589,7 +715,6 @@ TsSqlDatabaseImpl::TsSqlDatabaseImpl(
          characterSet,
          role,
          createParams);
-   m_waiter.wait(&m_mutex);
    DEBUG_OUT("Database-handle " << m_handle << " arrived for " << this);
 
    /* connect the other needed signals */
@@ -607,10 +732,16 @@ TsSqlDatabaseImpl::TsSqlDatabaseImpl(
       Qt::QueuedConnection);
    connect(
       this,
-      SIGNAL(databaseIsOpen(TsSqlDatabaseImpl*, DatabaseHandle, bool*)),
+      SIGNAL(databaseIsOpen(
+         TsSqlDatabaseImpl*, 
+         DatabaseHandle, 
+         bool*)),
       &m_thread,
-      SLOT(databaseIsOpen(TsSqlDatabaseImpl*, DatabaseHandle, bool*)),
-      Qt::QueuedConnection);
+      SLOT(databaseIsOpen(
+         TsSqlDatabaseImpl*, 
+         DatabaseHandle, 
+         bool*)),
+      Qt::BlockingQueuedConnection);
    connect(
       this,
       SIGNAL(databaseInfo(
@@ -624,7 +755,7 @@ TsSqlDatabaseImpl::TsSqlDatabaseImpl(
          DatabaseHandle, 
          DatabaseInfo,
          QString *)),
-      Qt::QueuedConnection);
+      Qt::BlockingQueuedConnection);
    connect(
       this,
       SIGNAL(databaseConnectedUsers(
@@ -636,7 +767,7 @@ TsSqlDatabaseImpl::TsSqlDatabaseImpl(
          TsSqlDatabaseImpl*,
          DatabaseHandle,
          QVector<QString>*)),
-      Qt::QueuedConnection);
+      Qt::BlockingQueuedConnection);
 }
 
 void TsSqlDatabaseImpl::emitOpened()
@@ -647,6 +778,11 @@ void TsSqlDatabaseImpl::emitOpened()
 void TsSqlDatabaseImpl::emitClosed()
 {
    emit closed();
+}
+
+void TsSqlDatabaseImpl::emitError(const QString &errorMessage)
+{
+   emit error(errorMessage);
 }
 
 void TsSqlDatabaseImpl::open()
@@ -664,8 +800,6 @@ bool TsSqlDatabaseImpl::isOpen()
 {
    bool result = false;
    emit databaseIsOpen(this, m_handle, &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlDatabaseImpl::isOpen() deadlocked");
    return result;
 }
 
@@ -673,8 +807,6 @@ QString TsSqlDatabaseImpl::server()
 {
    QString result;
    emit databaseInfo(this, m_handle, diServer, &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlDatabaseImpl::server() deadlocked");
    return result;
 }
 
@@ -682,8 +814,6 @@ QString TsSqlDatabaseImpl::database()
 {
    QString result;
    emit databaseInfo(this, m_handle, diDatabase, &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlDatabaseImpl::database() deadlocked");
    return result;
 }
 
@@ -691,8 +821,6 @@ QString TsSqlDatabaseImpl::user()
 {
    QString result;
    emit databaseInfo(this, m_handle, diUser, &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlDatabaseImpl::user() deadlocked");
    return result;
 }
 
@@ -700,8 +828,6 @@ QString TsSqlDatabaseImpl::password()
 {
    QString result;
    emit databaseInfo(this, m_handle, diPassword, &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlDatabaseImpl::password() deadlocked");
    return result;
 }
 
@@ -709,8 +835,6 @@ QString TsSqlDatabaseImpl::role()
 {
    QString result;
    emit databaseInfo(this, m_handle, diRole, &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlDatabaseImpl::role() deadlocked");
    return result;
 }
 
@@ -718,8 +842,6 @@ QString TsSqlDatabaseImpl::characterSet()
 {
    QString result;
    emit databaseInfo(this, m_handle, diCharacterSet, &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlDatabaseImpl::characterSet() deadlocked");
    return result;
 }
 
@@ -727,8 +849,6 @@ QString TsSqlDatabaseImpl::createParams()
 {
    QString result;
    emit databaseInfo(this, m_handle, diCreateParams, &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlDatabaseImpl::createParams() deadlocked");
    return result;
 }
 
@@ -736,17 +856,21 @@ QVector<QString> TsSqlDatabaseImpl::connectedUsers()
 {
    QVector<QString> result;
    emit databaseConnectedUsers(this, m_handle, &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlDatabaseImpl::connectedUsers() deadlocked");
    return result;
 }
 
 TsSqlDatabaseImpl::~TsSqlDatabaseImpl()
 {
    m_thread.quit();
+   // Wait for the thread to gracefully finish.
+   // If this doesn't happen withing 10 seconds, try to terminate it
    if (!m_thread.wait(10000))
+   {
       m_thread.terminate();
-   m_thread.wait(10000);
+      // After it was tried to terminate it, wait another
+      // 10 seconds for the thread to finish.
+      m_thread.wait(10000);
+   }
 }
 
 TsSqlTransactionImpl::TsSqlTransactionImpl(
@@ -767,13 +891,12 @@ TsSqlTransactionImpl::TsSqlTransactionImpl(
          TsSqlTransactionImpl *,
          DatabaseHandle,
          TsSqlTransaction::TransactionMode)),
-      Qt::QueuedConnection);
+      Qt::BlockingQueuedConnection);
 
    emit createTransaction(
       this,
       database.m_handle,
       mode);
-   m_waiter.wait(&m_mutex);
    DEBUG_OUT("Transaction-handle " << m_handle << " arrived for " << this);
 
    connect(
@@ -833,6 +956,11 @@ void TsSqlTransactionImpl::emitRolledBack()
    emit rolledBack();
 }
 
+void TsSqlTransactionImpl::emitError(const QString &errorMessage)
+{
+   emit error(errorMessage);
+}
+
 void TsSqlTransactionImpl::start()
 {
    DEBUG_OUT("Starting transaction " << this);
@@ -888,13 +1016,12 @@ TsSqlStatementImpl::TsSqlStatementImpl(
          TsSqlStatementImpl*,
          DatabaseHandle,
          TransactionHandle)),
-      Qt::QueuedConnection);
+      Qt::BlockingQueuedConnection);
 
    emit createStatement(
       this,
       database.m_handle,
       transaction.m_handle);
-   m_waiter.wait(&m_mutex);
    DEBUG_OUT("Statement-handle " << m_handle << " arrived for " << this);
 
    connectSignals(&database.m_thread);
@@ -949,7 +1076,7 @@ void TsSqlStatementImpl::connectSignals(QObject *receiver)
          StatementInfo,
          QVariant,
          QVariant *)),
-      Qt::QueuedConnection);
+      Qt::BlockingQueuedConnection);
 }
 
 TsSqlStatementImpl::TsSqlStatementImpl(
@@ -957,6 +1084,11 @@ TsSqlStatementImpl::TsSqlStatementImpl(
    TsSqlTransactionImpl &, 
    const QString &)
 {
+}
+
+void TsSqlStatementImpl::emitPrepared()
+{
+   emit prepared();
 }
 
 void TsSqlStatementImpl::emitExecuted()
@@ -979,8 +1111,14 @@ void TsSqlStatementImpl::emitFetchFinished()
    emit fetchFinished();
 }
 
-void TsSqlStatementImpl::prepare(const QString &)
+void TsSqlStatementImpl::emitError(const QString &errorMessage)
 {
+   emit error(errorMessage);
+}
+
+void TsSqlStatementImpl::prepare(const QString &sql)
+{
+   emit statementPrepare(this, m_handle, sql);
 }
 
 void TsSqlStatementImpl::execute(const QString &sql)
@@ -1022,8 +1160,6 @@ int TsSqlStatementImpl::columnCount()
          siColumnCount, 
          0,
          &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlStatementImpl::columnCount() deadlocked");
    return result.toInt();
 }
 
@@ -1036,8 +1172,6 @@ QString TsSqlStatementImpl::columnName(int columnIndex)
          siColumnName, 
          columnIndex,
          &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlStatementImpl::columnName() deadlocked");
    return result.toString();
 }
 
@@ -1050,8 +1184,6 @@ int TsSqlStatementImpl::columnIndex(const QString &columnName)
          siColumnIndex, 
          columnName,
          &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlStatementImpl::columnIndex() deadlocked");
    return result.toInt();
 }
 
@@ -1064,8 +1196,6 @@ QString TsSqlStatementImpl::columnAlias(int columnIndex)
          siColumnAlias, 
          columnIndex,
          &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlStatementImpl::columnAlias() deadlocked");
    return result.toString();
 }
 
@@ -1078,8 +1208,6 @@ QString TsSqlStatementImpl::columnTable(int columnIndex)
          siColumnTable, 
          columnIndex,
          &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlStatementImpl::columnTable() deadlocked");
    return result.toString();
 }
 
@@ -1092,8 +1220,6 @@ TsSqlType TsSqlStatementImpl::columnType(int columnIndex)
          siColumnType, 
          columnIndex,
          &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlStatementImpl::columnType() deadlocked");
    return static_cast<TsSqlType>(result.toInt());
 }
 
@@ -1106,8 +1232,6 @@ int TsSqlStatementImpl::columnSubType(int columnIndex)
       siColumnSubType,
       columnIndex,
       &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlStatementImpl::columnSubType() deadlocked");
    return result.toInt();
 }
 
@@ -1120,7 +1244,6 @@ int TsSqlStatementImpl::columnSize(int columnIndex)
       siColumnSize,
       columnIndex,
       &result);
-   CHECK_DEADLOCK;
    return result.toInt();
 }
 
@@ -1133,8 +1256,6 @@ int TsSqlStatementImpl::columnScale(int columnIndex)
       siColumnScale,
       columnIndex,
       &result);
-   if (!m_waiter.wait(&m_mutex, 1000))
-      DEBUG_OUT("TsSqlStatementImpl::columnScale() deadlocked");
    return result.toInt();
 }
 

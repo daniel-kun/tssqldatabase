@@ -1,8 +1,6 @@
 #ifndef DATABASE_H_27_08_2008
 #define DATABASE_H_27_08_2008
 
-#include <stdexcept>
-
 #include <QDate>
 #include <QTime>
 #include <QObject>
@@ -10,13 +8,6 @@
 #include <QVector>
 #include <QVariant>
 #include <QDateTime>
-
-class TsSqlException: public std::runtime_error
-{
-   public:
-      TsSqlException(const std::string &what): runtime_error(what)
-   { }
-};
 
 enum TsSqlType
 {
@@ -45,7 +36,7 @@ class TsSqlDatabase: public QObject
    private slots:
       void emitOpened();
       void emitClosed();
-      void emitError(const QString &errorString);
+      void emitError(const QString &errorMessage);
    public:
       TsSqlDatabase(
          const QString &server,
@@ -56,9 +47,9 @@ class TsSqlDatabase: public QObject
          const QString &role         = QString(),
          const QString &createParams = QString());
       ~TsSqlDatabase();
-      virtual void open();   // async
-      virtual void close();  // async
-      virtual bool isOpen();
+      void open();   // async
+      void close();  // async
+      bool isOpen();
       QString server();
       QString database();
       QString user();
@@ -70,7 +61,7 @@ class TsSqlDatabase: public QObject
    signals:
       void opened();
       void closed();
-      void error(const QString &errorString);
+      void error(const QString &errorMessage);
 };
 
 class TsSqlTransaction: public QObject
@@ -83,6 +74,7 @@ class TsSqlTransaction: public QObject
       void emitStarted();
       void emitCommited();
       void emitRolledBack();
+      void emitError(const QString &errorMessage);
    public:
       enum TransactionMode
       {
@@ -100,6 +92,7 @@ class TsSqlTransaction: public QObject
       void started();
       void commited();
       void rolledBack();
+      void error(const QString &errorMessage);
 };
 Q_DECLARE_METATYPE(TsSqlTransaction::TransactionMode);
 
@@ -114,6 +107,7 @@ class TsSqlStatement: public QObject
       void emitFetchStarted();
       void emitFetched(TsSqlRow row);
       void emitFetchFinished();
+      void emitError(const QString &errorMessage);
    public:
       TsSqlStatement(TsSqlDatabase &database, TsSqlTransaction &transaction);
       TsSqlStatement(TsSqlDatabase &database, TsSqlTransaction &transaction, const QString &sql);
@@ -136,10 +130,12 @@ class TsSqlStatement: public QObject
       int        columnSize   (int columnIndex);
       int        columnScale  (int columnIndex);
    signals:
+      void prepared();
       void executed();
       void fetchStarted();
       void fetched(TsSqlRow row);
       void fetchFinished();
+      void error(const QString &errorMessage);
 };
 
 #endif

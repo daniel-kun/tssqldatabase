@@ -41,9 +41,9 @@ void TsSqlDatabase::emitClosed()
    emit closed();
 }
 
-void TsSqlDatabase::emitError(const QString &errorString)
+void TsSqlDatabase::emitError(const QString &errorMessage)
 {
-   emit error(errorString);
+   emit error(errorMessage);
 }
 
 void TsSqlDatabase::open()
@@ -106,9 +106,10 @@ TsSqlTransaction::TsSqlTransaction(
    TransactionMode mode):
    m_impl(new TsSqlTransactionImpl(*database.m_impl, mode))
 {
-   connect(m_impl, SIGNAL(started()),    this, SLOT(emitStarted()));
-   connect(m_impl, SIGNAL(commited()),   this, SLOT(emitCommited()));
-   connect(m_impl, SIGNAL(rolledBack()), this, SLOT(emitRolledBack()));
+   connect(m_impl, SIGNAL(started()),      this, SLOT(emitStarted()));
+   connect(m_impl, SIGNAL(commited()),     this, SLOT(emitCommited()));
+   connect(m_impl, SIGNAL(rolledBack()),   this, SLOT(emitRolledBack()));
+   connect(m_impl, SIGNAL(error(QString)), this, SLOT(emitError(QString)));
 }
 
 TsSqlTransaction::~TsSqlTransaction()
@@ -129,6 +130,11 @@ void TsSqlTransaction::emitCommited()
 void TsSqlTransaction::emitRolledBack()
 {
    emit rolledBack();
+}
+
+void TsSqlTransaction::emitError(const QString &errorMessage)
+{
+   emit error(errorMessage);
 }
 
 void TsSqlTransaction::start()
@@ -203,12 +209,19 @@ void TsSqlStatement::emitFetchFinished()
    emit fetchFinished();
 }
 
+void TsSqlStatement::emitError(const QString &errorMessage)
+{
+   emit error(errorMessage);
+}
+
 void TsSqlStatement::connectSignals()
 {
+   connect(m_impl, SIGNAL(prepared()),        this, SLOT(emitPrepared()));
    connect(m_impl, SIGNAL(executed()),        this, SLOT(emitExecuted()));
    connect(m_impl, SIGNAL(fetchStarted()),    this, SLOT(emitFetchStarted()));
    connect(m_impl, SIGNAL(fetched(TsSqlRow)), this, SLOT(emitFetched(TsSqlRow)));
    connect(m_impl, SIGNAL(fetchFinished()),   this, SLOT(emitFetchFinished()));
+   connect(m_impl, SIGNAL(error(QString)),    this, SLOT(emitError(QString)));
 }
 
 void TsSqlStatement::prepare(const QString &sql)

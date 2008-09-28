@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QStringList>
+#include <QMessageBox>
 #include <QDebug>
 
 #include "main.h"
@@ -21,6 +22,10 @@ DatabaseTest::DatabaseTest():
    connect(&m_btnOpen,     SIGNAL(clicked()),  SLOT(openDatabase()));
    connect(&m_btnExecute,  SIGNAL(clicked()),  SLOT(executeStatement()));
    connect(&m_btnClose,    SIGNAL(clicked()),  SLOT(closeDatabase()));
+
+   connect(&m_database,    SIGNAL(error(QString)), SLOT(displayError(QString)));
+   connect(&m_transaction, SIGNAL(error(QString)), SLOT(displayError(QString)));
+   connect(&m_statement,   SIGNAL(error(QString)), SLOT(displayError(QString)));
 
    connect(&m_database,    SIGNAL(opened()),   SLOT(startTransaction()));
    connect(&m_database,    SIGNAL(closed()),   SLOT(databaseClosed()));
@@ -133,8 +138,12 @@ void DatabaseTest::fetchDatasets()
 
 void DatabaseTest::databaseOpened()
 {
-   DEBUG_OUT("Database is opened");
-   setIsOpen(m_database.isOpen());
+   bool isOpen = m_database.isOpen();
+   if (isOpen)
+      DEBUG_OUT("Database is open");
+   else
+      DEBUG_OUT("DATABASE IS NOT OPEN!");
+   setIsOpen(isOpen);
 }
 
 void DatabaseTest::databaseClosed()
@@ -174,6 +183,11 @@ void DatabaseTest::fetchFinished()
 {
    DEBUG_OUT("Fetching datasets finished, closing database!");
    m_database.close();
+}
+
+void DatabaseTest::displayError(const QString &errorMessage)
+{
+   QMessageBox::critical(this, "Error", errorMessage);
 }
 
 int main(int argc, char *argv[])
