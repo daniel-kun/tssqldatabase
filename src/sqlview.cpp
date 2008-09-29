@@ -1,43 +1,50 @@
 #include "sqlview.h"
 
-TsSqlTableModel::TsSqlTableModel(TsSqlStatement &fetchIds, TsSqlStatement &fetchData):
-   m_fetchIds(fetchIds),
-   m_fetchData(fetchData),
+TsSqlTableModel::TsSqlTableModel(TsSqlBuffer &buffer):
+   m_buffer(buffer),
    m_rowCount(0),
    m_colCount(0)
 {
-   connect(&m_fetchData, SIGNAL(prepared()),        this, SLOT(dataPrepared()));
-/*   connect(&m_fetchData, SIGNAL(fetched(TsSqlRow)), this, SLOT(dataFetched(TsSqlRow)));*/
-
-   connect(&m_fetchIds,  SIGNAL(fetched(TsSqlRow)), this, SLOT(idFetched(TsSqlRow)));
+   connect(&m_updateTimer, SIGNAL(timeout()), this, SLOT(updateRowCount()));
+   m_updateTimer.start(500);
+//   connect(&buffer, SIGNAL(cleared()),        this, SLOT(updateRowCount()));
+//   connect(&buffer, SIGNAL(rowAppended()),    this, SLOT(updateRowCount()));
+//   connect(&buffer, SIGNAL(rowDeleted()),     this, SLOT(updateRowCount()));
+   connect(&buffer, SIGNAL(columnsChanged()), this, SLOT(updateColumnCount()));
 }
 
-void TsSqlTableModel::dataPrepared()
+void TsSqlTableModel::updateColumnCount()
 {
-   int colCount = m_fetchData.columnCount();
+   unsigned colCount = m_buffer.columnCount();
    if (colCount > m_colCount)
    {
       beginInsertColumns(QModelIndex(), m_colCount, m_colCount + colCount);
+      m_colCount = colCount;
       endInsertColumns();
    }
    else if (colCount < m_colCount)
    {
       beginRemoveColumns(QModelIndex(), colCount, m_colCount);
+      m_colCount = colCount;
       endRemoveColumns();
    }
-   m_colCount = colCount;
 }
 
-void TsSqlTableModel::idFetched(TsSqlRow)
+void TsSqlTableModel::updateRowCount()
 {
-   int rows = m_rowCount + 1;
-   beginInsertRows(QModelIndex(), rows, rows);
-   m_rowCount = rows;
-   endInsertRows();
-}
-
-void TsSqlTableModel::dataFetched(TsSqlRow)
-{
+   int rowCount = m_buffer.count();
+   if (rowCount > m_rowCount)
+   {
+      beginInsertRows(QModelIndex(), m_rowCount, m_rowCount + rowCount);
+      m_rowCount = rowCount;
+      endInsertRows();
+   }
+   else if (rowCount < m_rowCount)
+   {
+      beginRemoveRows(QModelIndex(), rowCount, m_rowCount);
+      m_rowCount = rowCount;
+      endRemoveRows();
+   }
 }
 
 int TsSqlTableModel::rowCount(const QModelIndex &parent) const
@@ -56,12 +63,8 @@ int TsSqlTableModel::columnCount(const QModelIndex &parent) const
 
 QVariant TsSqlTableModel::data(const QModelIndex &index, int role) const
 {
-   if (index != QModelIndex())
-      return QVariant();
    if (role == Qt::DisplayRole)
-   {
-      return QVariant(QString());
-   }
+      return m_buffer.getRow(index.row())[index.column()].asVariant();
    return QVariant();
 }
 

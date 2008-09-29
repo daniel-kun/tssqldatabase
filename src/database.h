@@ -3,6 +3,7 @@
 
 #include <QDate>
 #include <QTime>
+#include <QMutex>
 #include <QObject>
 #include <QString>
 #include <QVector>
@@ -28,39 +29,31 @@ typedef short     TsSqlSmallInt;
 typedef int       TsSqlInt;
 typedef long long TsSqlLargeInt;
 
+union TsSqlVariantData
+{
+   void         *asPointer;
+   TsSqlSmallInt asInt16;
+   TsSqlInt      asInt32;
+   TsSqlLargeInt asInt64;
+   float         asFloat;
+   double        asDouble;
+};
+
 class TsSqlVariant
 {
    private:
-      union Data
-      {
-         void         *asPointer;
-         TsSqlSmallInt asInt16;
-         TsSqlInt      asInt32;
-         TsSqlLargeInt asInt64;
-         float         asFloat;
-         double        asDouble;
-      } m_data;
+      TsSqlVariantData m_data;
       TsSqlType m_type;
       bool      m_delete;
       template<typename T>
-      void newValue(const T &value, TsSqlType type)
-      {
-         m_data.asPointer = new T(value);
-         m_type = type;
-         m_delete = true;
-      }
+         void newValue(const T &value, TsSqlType type);
       friend void setFromStatement(TsSqlVariant &variant, void *statement, int column);
       friend void setStatementParam(const TsSqlVariant &variant, void *statement, int column);
    public:
       TsSqlVariant();
       template<typename T>
-      TsSqlVariant(const T &value):
-         m_type(stUnknown),
-         m_delete(false)
-      {
-         m_data.asPointer = 0;
-         setVariant(QVariant(value));
-      }
+         TsSqlVariant(const T &value);
+      TsSqlVariant(const TsSqlVariant &copy);
       ~TsSqlVariant();
       TsSqlType type() const;
 
@@ -68,16 +61,8 @@ class TsSqlVariant
       void setNull();
       void setVariant  (const QVariant &value);
       template<typename T>
-         void set(const T &value)
-      {
-         setVariant(QVariant(value));
-      }
-      void set(float value) // floats will not be handled by setVariant
-      {
-         setNull();
-         m_data.asFloat = value;
-         m_type = stFloat;
-      }
+         void set(const T &value);
+      void set(float value); // floats will not be handled by setVariant
 
       QVariant      asVariant()   const;
       QByteArray    asData()      const;
@@ -91,16 +76,49 @@ class TsSqlVariant
       QDate         asDate()      const;
       QTime         asTime()      const;
       template<typename T>
-      TsSqlVariant &operator=(const T &value)
-      {
-         set(value);
-         return *this;
-      }
+         TsSqlVariant &operator=(const T &value);
 };
 Q_DECLARE_METATYPE(TsSqlVariant);
 
 typedef QVector<TsSqlVariant> TsSqlRow;
 Q_DECLARE_METATYPE(TsSqlRow);
+
+// This class is thread-safe!
+// Hence it has a rather cumbersome API to get and set elements.
+class TsSqlBuffer: public QObject
+{
+   Q_OBJECT
+   private:
+      class TsSqlBufferImpl *m_impl;
+      void connectSignals();
+   public:
+      // A buffer can either have one statement for data and row retrieval
+      // or use one statement to fetch primary keys and another to fetch the
+      // rest of the data. The latter is much faster, because only datasets
+      // are retrieved that are being asked for.
+      TsSqlBuffer();
+      TsSqlBuffer(class TsSqlStatement &dataStatement);
+      TsSqlBuffer(
+         class TsSqlStatement &dataStatement,
+         class TsSqlStatement &fetchStatement);
+//      TsSqlBuffer(const TsSqlBuffer &copy);
+      ~TsSqlBuffer();
+      void setStatements(TsSqlStatement *dataStatement, TsSqlStatement *fetchStatement = 0);
+      void clear();
+      void appendRow(const TsSqlRow &row);
+      void deleteRow(unsigned index);
+      void getRow(unsigned index, TsSqlRow &row);
+      // It COPIES the row, otherwise it was not thread-safe.
+      TsSqlRow getRow(unsigned index);
+      void setRow(unsigned index, const TsSqlRow &row);
+      unsigned count() const;
+      unsigned columnCount() const;
+   signals:
+      void cleared();
+      void rowAppended();
+      void rowDeleted();
+      void columnsChanged();
+};
 
 class TsSqlDatabase: public QObject
 {
@@ -223,5 +241,36 @@ class TsSqlStatement: public QObject
       void fetchFinished();
       void error(const QString &errorMessage);
 };
+
+/* Template-Implementations */
+template<typename T>
+TsSqlVariant::TsSqlVariant(const T &value):
+   m_type(stUnknown),
+   m_delete(false)
+{
+   m_data.asPointer = 0;
+   setVariant(QVariant(value));
+}
+
+template<typename T>
+void TsSqlVariant::newValue(const T &value, TsSqlType type)
+{
+   m_data.asPointer = new T(value);
+   m_type = type;
+   m_delete = true;
+}
+
+template<typename T>
+void TsSqlVariant::set(const T &value)
+{
+   setVariant(QVariant(value));
+}
+
+template<typename T>
+TsSqlVariant &TsSqlVariant::operator=(const T &value)
+{
+   set(value);
+   return *this;
+}
 
 #endif

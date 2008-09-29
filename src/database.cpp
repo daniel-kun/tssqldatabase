@@ -1,5 +1,6 @@
 #include "database.h"
 #include "database_p.h"
+
 #include <QThread>
 
 TsSqlVariant::TsSqlVariant(): 
@@ -7,6 +8,43 @@ TsSqlVariant::TsSqlVariant():
    m_delete(false)
 {
    m_data.asPointer = 0;
+}
+
+TsSqlVariant::TsSqlVariant(const TsSqlVariant &copy):
+   m_type(copy.m_type)
+{
+   switch(m_type)
+   {
+      case stBlob:
+         m_data.asPointer =
+            new QByteArray(*reinterpret_cast<QByteArray*>(copy.m_data.asPointer));
+         m_delete = true;
+         break;
+      case stDate:
+         m_data.asPointer =
+            new QDate(*reinterpret_cast<QDate*>(copy.m_data.asPointer));
+         m_delete = true;
+         break;
+      case stTime:
+         m_data.asPointer =
+            new QTime(*reinterpret_cast<QTime*>(copy.m_data.asPointer));
+         m_delete = true;
+         break;
+      case stTimeStamp:
+         m_data.asPointer =
+            new QDateTime(*reinterpret_cast<QDateTime*>(copy.m_data.asPointer));
+         m_delete = true;
+         break;
+      case stString:
+         m_data.asPointer =
+            new QString(*reinterpret_cast<QString*>(copy.m_data.asPointer));
+         m_delete = true;
+         break;
+      default:
+         m_data.asDouble = copy.m_data.asDouble; // Copy the biggest union-member
+         m_delete = false;
+         break;
+   }
 }
 
 TsSqlVariant::~TsSqlVariant()
@@ -56,7 +94,7 @@ void TsSqlVariant::setNull()
 
 void TsSqlVariant::setVariant(const QVariant &value)
 {
-   switch(m_type)
+/*   switch(m_type)
    {
       case stBlob:
          *reinterpret_cast<QByteArray*>(m_data.asPointer) = value.toByteArray();
@@ -88,15 +126,11 @@ void TsSqlVariant::setVariant(const QVariant &value)
       case stDouble:
          m_data.asDouble = value.toDouble();
          break;
-      default:
+      default:*/
          // If none or an incompatible type is currently set
          setNull();
          switch(value.type())
          {
-            case QVariant::Invalid:
-               m_data.asPointer = 0;
-               m_type = stUnknown;
-               break;
             case QVariant::ByteArray:
                newValue(value.toByteArray(), stBlob);
                break;
@@ -139,7 +173,14 @@ void TsSqlVariant::setVariant(const QVariant &value)
                newValue(value.toString(), stString);
                break;
          }
-   }
+//   }
+}
+
+void TsSqlVariant::set(float value)
+{
+   setNull();
+   m_data.asFloat = value;
+   m_type = stFloat;
 }
 
 QVariant TsSqlVariant::asVariant() const
@@ -219,6 +260,84 @@ QDate TsSqlVariant::asDate() const
 QTime TsSqlVariant::asTime() const
 {
    return asVariant().toTime();
+}
+
+TsSqlBuffer::TsSqlBuffer():
+   m_impl(new TsSqlBufferImpl())
+{
+   connectSignals();
+}
+
+TsSqlBuffer::TsSqlBuffer(TsSqlStatement &dataStatement):
+   m_impl(new TsSqlBufferImpl(dataStatement))
+{
+   connectSignals();
+}
+
+TsSqlBuffer::TsSqlBuffer(
+   TsSqlStatement &dataStatement,
+   TsSqlStatement &fetchStatement):
+   m_impl(new TsSqlBufferImpl(dataStatement, fetchStatement))
+{
+   connectSignals();
+}
+
+void TsSqlBuffer::setStatements(TsSqlStatement *dataStatement, TsSqlStatement *fetchStatement)
+{
+   m_impl->setStatements(dataStatement, fetchStatement);
+}
+
+void TsSqlBuffer::connectSignals()
+{
+   connect(m_impl, SIGNAL(cleared()),        this, SIGNAL(cleared()));
+   connect(m_impl, SIGNAL(rowAppended()),    this, SIGNAL(rowAppended()));
+   connect(m_impl, SIGNAL(rowDeleted()),     this, SIGNAL(rowDeleted()));
+   connect(m_impl, SIGNAL(columnsChanged()), this, SIGNAL(columnsChanged()));
+}
+
+TsSqlBuffer::~TsSqlBuffer()
+{
+   delete m_impl;
+}
+
+void TsSqlBuffer::clear()
+{
+   m_impl->clear();
+}
+
+void TsSqlBuffer::appendRow(const TsSqlRow &row)
+{
+   m_impl->appendRow(row);
+}
+
+void TsSqlBuffer::deleteRow(unsigned index)
+{
+   m_impl->deleteRow(index);
+}
+
+void TsSqlBuffer::getRow(unsigned index, TsSqlRow &row)
+{
+   m_impl->getRow(index, row);
+}
+
+TsSqlRow TsSqlBuffer::getRow(unsigned index)
+{
+   return m_impl->getRow(index);
+}
+
+void TsSqlBuffer::setRow(unsigned index, const TsSqlRow &row)
+{
+   m_impl->setRow(index, row);
+}
+
+unsigned TsSqlBuffer::count() const
+{
+   return m_impl->count();
+}
+
+unsigned TsSqlBuffer::columnCount() const
+{
+   return m_impl->columnCount();
 }
 
 /* The rest of this source-file only includes pimpl-forwards */

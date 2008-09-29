@@ -4,6 +4,44 @@
 
 #include <QThread>
 #include <QMutex>
+#include <QPair>
+
+class TsSqlBufferImpl: public QObject
+{
+   Q_OBJECT
+   private:
+      mutable QMutex m_mutex;
+      QList<QPair<bool, TsSqlRow> > m_rows;
+      TsSqlStatement *m_data, *m_fetch;
+      unsigned m_colCount;
+   private slots:
+      void appendEmptyRow(const TsSqlRow &row);
+      void updateColumnCount();
+      void validateRow(unsigned row);
+   public:
+      TsSqlBufferImpl();
+      TsSqlBufferImpl(TsSqlStatement &dataStatement);
+      TsSqlBufferImpl(
+         TsSqlStatement &dataStatement, 
+         TsSqlStatement &fetchStatement);
+      TsSqlBufferImpl(const TsSqlBufferImpl &copy);
+      void setStatements(TsSqlStatement *dataStatement, TsSqlStatement *fetchStatement = 0);
+   public slots:
+      void clear();
+      void appendRow(const TsSqlRow &row);
+      void deleteRow(unsigned index);
+      void getRow(unsigned index, TsSqlRow &row);
+      // It COPIES the row, otherwise it was not thread-safe.
+      TsSqlRow getRow(unsigned index);
+      void setRow(unsigned index, const TsSqlRow &row);
+      unsigned count() const;
+      unsigned columnCount() const;
+   signals:
+      void cleared();
+      void rowAppended();
+      void rowDeleted();
+      void columnsChanged();
+};
 
 // These fakes are necessary so the Qt meta-object system
 // can distinguish the handle-types.
@@ -337,8 +375,12 @@ class TsSqlStatementImpl: public QObject
       bool m_stopFetching;
       void connectSignals(QObject *receiver);
       friend class TsSqlDatabaseThread;
-   private slots:
+   public slots:
       void fetchDataset(const TsSqlRow &row);
+      void emitPrepared()
+      {
+         emit prepared();
+      }
    public:
       TsSqlStatementImpl(
          TsSqlDatabaseImpl &database, 

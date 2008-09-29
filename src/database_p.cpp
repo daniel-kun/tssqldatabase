@@ -7,6 +7,140 @@
 #include "main.h"
 #include "database_p.h"
 
+#define DEBUG_LOG(message) qDebug() << "Thread [" << QThread::currentThreadId() << "] " << message
+
+TsSqlBufferImpl::TsSqlBufferImpl():
+   m_data(0),
+   m_fetch(0),
+   m_colCount(0)
+{
+   setStatements(0, 0);
+}
+
+TsSqlBufferImpl::TsSqlBufferImpl(TsSqlStatement &dataStatement):
+   m_data(0),
+   m_fetch(0),
+   m_colCount(0)
+{
+   setStatements(&dataStatement);
+}
+
+TsSqlBufferImpl::TsSqlBufferImpl(
+   TsSqlStatement &dataStatement, 
+   TsSqlStatement &fetchStatement):
+   m_data(0),
+   m_fetch(0),
+   m_colCount(0)
+{
+   setStatements(&dataStatement, &fetchStatement);
+}
+
+TsSqlBufferImpl::TsSqlBufferImpl(const TsSqlBufferImpl &copy): QObject(0)
+{
+   QMutexLocker lock(&m_mutex);
+   QMutexLocker lockCopy(&copy.m_mutex);
+   m_rows = copy.m_rows;
+   setStatements(copy.m_data, copy.m_fetch);
+}
+
+void TsSqlBufferImpl::setStatements(
+   TsSqlStatement *dataStatement, 
+   TsSqlStatement *fetchStatement)
+{
+   if (m_data)
+      disconnect(m_data, 0, this, 0);
+   if (m_fetch)
+      disconnect(m_fetch, 0, this, 0);
+   // Only a fetch but no data statement is not allowed
+   if (!dataStatement)
+      fetchStatement = 0;
+   m_data  = dataStatement;
+   m_fetch = fetchStatement;
+   if (m_data && m_fetch)
+      connect(m_fetch, SIGNAL(fetched(TsSqlRow)), this, SLOT(appendEmptyRow(TsSqlRow)));
+   else if (dataStatement)
+      connect(m_data, SIGNAL(fetched(TsSqlRow)), this, SLOT(appendRow(TsSqlRow)));
+   connect(dataStatement, SIGNAL(prepared()), this, SLOT(updateColumnCount()));
+}
+
+void TsSqlBufferImpl::updateColumnCount()
+{
+   m_colCount = m_data->columnCount();
+   emit columnsChanged();
+}
+
+void TsSqlBufferImpl::validateRow(unsigned row)
+{
+   QPair<bool, TsSqlRow> &item = m_rows[row];
+   if (!item.first)
+   {
+      m_data->setParam(1, item.second[0].asInt32());
+      m_data->executeWaiting();
+      m_data->fetchRow(item.second);
+      item.first = true;
+   }
+}
+
+void TsSqlBufferImpl::clear()
+{
+   QMutexLocker locker(&m_mutex);
+   m_rows.clear();
+   emit cleared();
+}
+
+void TsSqlBufferImpl::appendEmptyRow(const TsSqlRow &row)
+{
+   QMutexLocker locker(&m_mutex);
+   m_rows.push_back(qMakePair(false, row));
+   emit rowAppended();
+}
+
+void TsSqlBufferImpl::appendRow(const TsSqlRow &row)
+{
+   QMutexLocker locker(&m_mutex);
+   m_rows.push_back(qMakePair(true, row));
+   emit rowAppended();
+}
+
+void TsSqlBufferImpl::deleteRow(unsigned index)
+{
+   QMutexLocker locker(&m_mutex);
+   m_rows.removeAt(index);
+   emit rowDeleted();
+}
+
+void TsSqlBufferImpl::getRow(unsigned index, TsSqlRow &row)
+{
+   QMutexLocker locker(&m_mutex);
+   validateRow(index);
+   row = m_rows[index].second;
+}
+
+TsSqlRow TsSqlBufferImpl::getRow(unsigned index)
+{
+   QMutexLocker locker(&m_mutex);
+   validateRow(index);
+   return m_rows[index].second;
+}
+
+void TsSqlBufferImpl::setRow(unsigned index, const TsSqlRow &row)
+{
+   QMutexLocker locker(&m_mutex);
+   m_rows[index].first   = true; // don't overwrite the content with fetched data
+   m_rows[index].second  = row;
+}
+
+unsigned TsSqlBufferImpl::count() const
+{
+   QMutexLocker locker(&m_mutex);
+   return m_rows.count();
+}
+
+unsigned TsSqlBufferImpl::columnCount() const
+{
+   return m_colCount;
+}
+
 #define EMIT_ASYNC(object, signal) { TsSqlThreadEmitter emitter(object); emitter.signal(); }
 #define EMIT_ERROR(object, errorMessage) {TsSqlThreadEmitter emitter(object); emitter.emitError(errorMessage); }
 
@@ -53,7 +187,8 @@ void TsSqlThreadEmitter::emitTransactionRolledBack()
 
 void TsSqlThreadEmitter::emitStatementPrepared()
 {
-   connect(this, SIGNAL(statementPrepared()), m_object, SIGNAL(prepared()), Qt::QueuedConnection);
+//   reinterpret_cast<TsSqlStatementImpl*>(m_object)->emitPrepared();
+   connect(this, SIGNAL(statementPrepared()), m_object, SLOT(emitPrepared()), Qt::QueuedConnection);
    emit statementPrepared();
 }
 
@@ -620,6 +755,7 @@ void TsSqlDatabaseThread::statementPrepare(
    DEBUG_RECEIVE("Received prepare request from " << object << " for statement " << handle);
    try
    {
+      DEBUG_LOG("Preparing " << sql);
       STHANDLE(handle)->Prepare(sql.toStdString());
       EMIT_ASYNC(object, emitStatementPrepared);
    } catch(std::exception &e)
@@ -636,6 +772,7 @@ void TsSqlDatabaseThread::statementExecute(
    DEBUG_RECEIVE("Received execute request from " << object << " for statement " << handle);
    try
    {
+      DEBUG_LOG("Executing " << STHANDLE(handle)->Sql().c_str());
       STHANDLE(handle)->Execute();
       EMIT_ASYNC(object, emitStatementExecuted);
       if (startFetch)
@@ -655,6 +792,7 @@ void TsSqlDatabaseThread::statementExecute(
    DEBUG_RECEIVE("Received execute request from " << object << " for statement " << handle);
    try
    {
+      DEBUG_LOG("Executing " << sql);
       STHANDLE(handle)->Execute(sql.toStdString());
       EMIT_ASYNC(object, emitStatementPrepared);
       EMIT_ASYNC(object, emitStatementExecuted);
@@ -675,6 +813,7 @@ void TsSqlDatabaseThread::statementExecute(
    DEBUG_RECEIVE("Received execute request from " << object << " for statement " << handle);
    try
    {
+      DEBUG_LOG("Executing " << STHANDLE(handle)->Sql().c_str() << " with params");
       setParams(handle, params);
       STHANDLE(handle)->Execute();
       EMIT_ASYNC(object, emitStatementExecuted);
@@ -696,9 +835,11 @@ void TsSqlDatabaseThread::statementExecute(
    DEBUG_RECEIVE("Received execute request from " << object << " for statement " << handle);
    try
    {
+      DEBUG_LOG("Preparing " << sql);
       STHANDLE(handle)->Prepare(sql.toStdString());
       EMIT_ASYNC(object, emitStatementPrepared);
       setParams(handle, params);
+      DEBUG_LOG("Executing " << sql << " with params");
       STHANDLE(handle)->Execute();
       EMIT_ASYNC(object, emitStatementExecuted);
       if (startFetch)
@@ -733,14 +874,6 @@ void TsSqlDatabaseThread::readRow(StatementHandle statement, TsSqlRow &row)
    Statement &st = STHANDLE(statement);
    int columns = st->Columns();
    row.resize(columns);
-   std::string text;
-   Blob blob;
-   Date date;
-   Time time;
-   Timestamp timestamp;
-   int  year, month, day, hour, minute, second, msecond;
-   TsSqlLargeInt largeint;
-   double dbl;
    for(int i = 1; i <= columns; ++i)
       setFromStatement(row[i-1], statement, i);
 }

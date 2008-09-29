@@ -78,6 +78,7 @@ class DataGrid: public QWidget
       TsSqlDatabase    m_database;
       TsSqlTransaction m_transaction;
       TsSqlStatement   m_fetchIds, m_fetchData, m_insertStatement;
+      TsSqlBuffer      m_buffer;
       TsSqlTableModel  m_model;
 
       QVBoxLayout      m_layout;
@@ -88,6 +89,7 @@ class DataGrid: public QWidget
       DataGrid();
       ~DataGrid();
    public slots:
+      void test();
       void fill();
       void insertDataset();
       void startFetch();

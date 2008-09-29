@@ -352,6 +352,8 @@ void DatabaseTest::displayError(const QString &errorMessage)
    QMessageBox::critical(this, "Error", errorMessage);
 }
 
+#define SYNC_OBJECTNAME(object) object.setObjectName(#object);
+
 DataGrid::DataGrid():
    m_dataCount(0),
    m_database(
@@ -363,7 +365,8 @@ DataGrid::DataGrid():
    m_fetchIds(m_database, m_transaction),
    m_fetchData(m_database, m_transaction),
    m_insertStatement(m_database, m_transaction),
-   m_model(m_fetchIds, m_fetchData),
+   m_buffer(m_fetchData, m_fetchIds),
+   m_model(m_buffer),
    m_layout(this),
    m_lDataCount(this),
    m_btnStart(this),
@@ -373,13 +376,17 @@ DataGrid::DataGrid():
    connect(&m_database,        SIGNAL(error(QString)), this, SLOT(displayError(QString)));
    connect(&m_transaction,     SIGNAL(error(QString)), this, SLOT(displayError(QString)));
    connect(&m_insertStatement, SIGNAL(error(QString)), this, SLOT(displayError(QString)));
+   connect(&m_fetchData,       SIGNAL(error(QString)), this, SLOT(displayError(QString)));
+   connect(&m_fetchIds,        SIGNAL(error(QString)), this, SLOT(displayError(QString)));
+//   connect(&m_buffer,          SIGNAL(columnsChanged()),     this, SLOT(test()));
+   
    m_layout.addWidget(&m_btnStart);
    m_layout.addWidget(&m_btnFill);
    m_layout.addWidget(&m_btnQuit);
 
    m_btnStart.setText("&Start");
-   m_btnFill.setText("&Fill");
-   m_btnQuit.setText( "&Quit");
+   m_btnFill.setText ("&Fill");
+   m_btnQuit.setText ("&Quit");
    connect(&m_btnStart, SIGNAL(clicked()), this, SLOT(startFetch()));
    connect(&m_btnFill,  SIGNAL(clicked()), this, SLOT(fill()));
    connect(&m_btnQuit,  SIGNAL(clicked()), this, SLOT(close()));
@@ -391,6 +398,7 @@ DataGrid::DataGrid():
    m_layout.addWidget(&m_lDataCount);
    m_table.setModel(&m_model);
    m_fetchData.prepare("select * from test2 where id=?");
+   m_fetchIds.execute("select id from test2", true);
 
    m_table.show();
 }
@@ -433,6 +441,11 @@ void DataGrid::insertDataset()
    m_lDataCount.setText(QString("%1 datasets inserted").arg(++m_dataCount));
    if ((m_dataCount % 1000) == 0)
       m_transaction.commitRetainingWaiting();
+}
+
+void DataGrid::test()
+{
+   QMessageBox::information(this, "Test", "Test");
 }
 
 int main(int argc, char *argv[])
