@@ -169,7 +169,7 @@ void setFromStatement(TsSqlVariant &variant, void *statement, int col)
          }
       case sdSmallint:
          {
-            int16_t temp;
+            TsSqlSmallInt temp;
             if (st->Get(col, temp))
                variant.setNull();
             else
@@ -178,7 +178,7 @@ void setFromStatement(TsSqlVariant &variant, void *statement, int col)
          }
       case sdInteger:
          {
-            int32_t temp;
+            TsSqlInt temp;
             if (st->Get(col, temp))
                variant.setNull();
             else
@@ -187,7 +187,7 @@ void setFromStatement(TsSqlVariant &variant, void *statement, int col)
          }
       case sdLargeint:
          {
-            int64_t temp;
+            TsSqlLargeInt temp;
             if (st->Get(col, temp))
                variant.setNull();
             else
@@ -616,62 +616,11 @@ void TsSqlDatabaseThread::statementExecute(
 void TsSqlDatabaseThread::statementSetParam(
    StatementHandle handle,
    int col,
-   QVariant param)
+   const TsSqlVariant &param)
 {
    using namespace IBPP;
    Statement &st = STHANDLE(handle);
-   Blob blob = BlobFactory(
-         st->DatabasePtr(),
-         st->TransactionPtr());
-   QDate qDate;
-   QTime qTime;
-   QDateTime qDateTime;
-   switch(st->ParameterType(col))
-   {
-      case sdBlob:
-         blob->Save(param.toString().toStdString());
-         st->Set(col, blob);
-         break;
-      case sdDate:
-         qDate = param.toDate();
-         st->Set(col, Date(qDate.year(), qDate.month(), qDate.day()));
-         break;
-      case sdTime:
-         qTime = param.toTime();
-         st->Set(col, Time(
-                  qTime.hour(), 
-                  qTime.minute(), 
-                  qTime.second(), 
-                  qTime.msec()));
-         break;
-      case sdTimestamp:
-         qDateTime = param.toDateTime();
-         st->Set(col, Timestamp(
-                  qDateTime.date().year(),
-                  qDateTime.date().month(),
-                  qDateTime.date().day(),
-                  qDateTime.time().hour(),
-                  qDateTime.time().minute(),
-                  qDateTime.time().second(),
-                  qDateTime.time().msec()));
-         break;
-      case sdString:
-         st->Set(col, param.toString().toStdString());
-         break;
-      case sdSmallint:
-      case sdInteger:
-      case sdLargeint:
-         st->Set(col, param.toInt());
-         break;
-      case sdFloat:
-         st->Set(col, static_cast<float>(param.toDouble()));
-         break;
-      case sdDouble:
-         st->Set(col, param.toDouble());
-         break;
-      default:
-         qDebug() << "Unknown column type! (Set)";
-   }
+//   st->Execute();
 }
 
 void TsSqlDatabaseThread::emitStatementRow(
@@ -696,79 +645,10 @@ void TsSqlDatabaseThread::readRow(StatementHandle statement, TsSqlRow &row)
    Time time;
    Timestamp timestamp;
    int  year, month, day, hour, minute, second, msecond;
-   int64_t largeint;
+   TsSqlLargeInt largeint;
    double dbl;
    for(int i = 1; i <= columns; ++i)
-   {
-      switch(st->ColumnType(i))
-      {
-         case sdBlob:
-            blob = BlobFactory(st->DatabasePtr(), st->TransactionPtr());
-            if (st->Get(i, blob))
-               row[i-1] = QVariant(QVariant::ByteArray);
-            else
-            {
-               blob->Load(text);
-               row[i-1] = QVariant(QByteArray::fromRawData(text.c_str(), text.size()));
-            }
-            break;
-         case sdDate:
-            if (st->Get(i, date))
-               row[i-1] = QVariant(QVariant::Date);
-            else
-            {
-               date.GetDate(year, month, day);
-               row[i-1] = QVariant(QDate(year, month, day));
-            }
-            break;
-         case sdTime:
-            if (st->Get(i, time))
-               row[i-1] = QVariant(QVariant::Time);
-            else
-            {
-               time.GetTime(hour, minute, second, msecond);
-               row[i-1] = QVariant(QTime(hour, minute, second, msecond));
-            }
-            break;
-         case sdTimestamp:
-            if (st->Get(i, timestamp))
-               row[i-1] = QVariant(QVariant::DateTime);
-            else
-            {
-               timestamp.GetDate(year, month, day);
-               timestamp.GetTime(hour, minute, second, msecond);
-               row[i-1] = QVariant(QDateTime(
-                  QDate(year, month, day), 
-                  QTime(hour, minute, second, msecond)));
-            }
-            break;
-         case sdString:
-            {
-               if (st->Get(i, text))
-                  row[i-1] = QVariant(QVariant::String);
-               else
-                  row[i-1] = QVariant(QString::fromStdString(text));
-               break;
-            }
-         case sdSmallint:
-         case sdInteger:
-         case sdLargeint:
-            if (st->Get(i, largeint))
-               row[i-1] = QVariant(QVariant::LongLong);
-            else
-               row[i-1] = QVariant(largeint);
-            break;
-         case sdFloat:
-         case sdDouble:
-            if (st->Get(1, dbl))
-               row[i-1] = QVariant(QVariant::Double);
-            else
-               row[i-1] = QVariant(dbl);
-            break;
-         default:
-            qDebug() << "Unknown column type!";
-      }
-   }
+      setFromStatement(row[i-1], statement, i);
 }
 
 void TsSqlDatabaseThread::setParams(StatementHandle statement, const TsSqlRow &params)
@@ -1526,12 +1406,12 @@ void TsSqlStatementImpl::connectSignals(QObject *receiver)
       SIGNAL(statementSetParam(
          StatementHandle,
          int,
-         QVariant)),
+         const TsSqlVariant &)),
       receiver,
       SLOT(statementSetParam(
          StatementHandle,
          int,
-         QVariant)),
+         const TsSqlVariant &)),
       Qt::BlockingQueuedConnection);
    connect(
       this,
@@ -1634,7 +1514,7 @@ void TsSqlStatementImpl::executeWaiting(
    emit statementExecuteWaiting(this, m_handle, sql, params, false);
 }
 
-void TsSqlStatementImpl::setParam(int column, const QVariant &param)
+void TsSqlStatementImpl::setParam(int column, const TsSqlVariant &param)
 {
    emit statementSetParam(
       m_handle,
@@ -1798,6 +1678,7 @@ namespace
          qRegisterMetaType<DatabaseInfo>();
          qRegisterMetaType<StatementInfo>();
 
+         qRegisterMetaType<TsSqlVariant>();
          qRegisterMetaType<TsSqlRow>();
          qRegisterMetaType<TsSqlTransaction::TransactionMode>();
       }

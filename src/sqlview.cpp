@@ -7,9 +7,9 @@ TsSqlTableModel::TsSqlTableModel(TsSqlStatement &fetchIds, TsSqlStatement &fetch
    m_colCount(0)
 {
    connect(&m_fetchData, SIGNAL(prepared()),        this, SLOT(dataPrepared()));
-   connect(&m_fetchData, SIGNAL(fetched(TsSqlRow)), this, SLOT(dataFetched(TsSqlRow)));
+/*   connect(&m_fetchData, SIGNAL(fetched(TsSqlRow)), this, SLOT(dataFetched(TsSqlRow)));
 
-   connect(&m_fetchIds,  SIGNAL(fetched(TsSqlRow)), this, SLOT(idFetched(TsSqlRow)));
+   connect(&m_fetchIds,  SIGNAL(fetched(TsSqlRow)), this, SLOT(idFetched(TsSqlRow)));*/
 }
 
 void TsSqlTableModel::dataPrepared()
@@ -59,7 +59,7 @@ QVariant TsSqlTableModel::data(const QModelIndex &index, int role) const
       return QVariant();
    if (role == Qt::DisplayRole)
    {
-
+      return QVariant(QString());
    }
    return QVariant();
 }

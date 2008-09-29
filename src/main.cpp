@@ -194,8 +194,8 @@ void DatabaseTest::printDataset(TsSqlRow row)
    int col = 1;
    for(TsSqlRow::const_iterator i = row.begin() + 1; i != row.end(); ++i)
    {
-      result << i->toString();
-      QTableWidgetItem *item = new QTableWidgetItem(i->toString());
+      result << i->asString();
+      QTableWidgetItem *item = new QTableWidgetItem(i->asString());
       m_tblData.setItem(rows, col++, item);
    }
    DEBUG_OUT("Fetched row: " << result);
@@ -313,13 +313,13 @@ void DatabaseTest::testSync()
 
    // 3. Prepare, set parameters, then execute
    m_syncStatement.prepareWaiting("insert into test(id, text)values(gen_id(test_gen, 1), ?)");
-   m_syncStatement.setParam(1, QVariant("Sync, Step 3!"));
+   m_syncStatement.setParam(1, TsSqlVariant("Sync, Step 3!"));
    m_syncStatement.executeWaiting();
 
    // 4. Prepare, then execute and set parameters in one step
    m_syncStatement.prepareWaiting("insert into test(id, text)values(gen_id(test_gen, 1), ?)");
-   QVector<QVariant> params;
-   params.push_back(QVariant("Sync, Step 4!"));
+   TsSqlRow params;
+   params.push_back(TsSqlVariant("Sync, Step 4!"));
    m_syncStatement.executeWaiting(params);
 
    // 5. Execute and set parameters in one step
@@ -365,8 +365,8 @@ DataGrid::DataGrid():
    m_layout(this),
    m_table(this)
 {
-   m_database.test();
-   return;
+/*   m_database.test();
+   return;*/
    m_database.openWaiting();
    m_transaction.startWaiting();
 
@@ -384,6 +384,8 @@ int main(int argc, char *argv[])
 
    DataGrid dataGrid;
    dataGrid.show();
+//   DatabaseTest test;
+//   test.show();
 
    app.exec();
 }

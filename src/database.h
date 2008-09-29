@@ -24,17 +24,21 @@ enum TsSqlType
    stDouble
 };
 
+typedef short     TsSqlSmallInt;
+typedef int       TsSqlInt;
+typedef long long TsSqlLargeInt;
+
 class TsSqlVariant
 {
    private:
       union Data
       {
-         void   *asPointer;
-         int16_t asInt16;
-         int32_t asInt32;
-         int64_t asInt64;
-         float   asFloat;
-         double  asDouble;
+         void         *asPointer;
+         TsSqlSmallInt asInt16;
+         TsSqlInt      asInt32;
+         TsSqlLargeInt asInt64;
+         float         asFloat;
+         double        asDouble;
       } m_data;
       TsSqlType m_type;
       bool      m_delete;
@@ -49,6 +53,14 @@ class TsSqlVariant
       friend void setStatementParam(const TsSqlVariant &variant, void *statement, int column);
    public:
       TsSqlVariant();
+      template<typename T>
+      TsSqlVariant(const T &value):
+         m_type(stUnknown),
+         m_delete(false)
+      {
+         m_data.asPointer = 0;
+         setVariant(QVariant(value));
+      }
       ~TsSqlVariant();
       TsSqlType type() const;
 
@@ -61,20 +73,27 @@ class TsSqlVariant
          setVariant(QVariant(value));
       }
 
-      QVariant   asVariant()   const;
-      QByteArray asData()      const;
-      QString    asString()    const;
-      int16_t    asInt16()     const;
-      int32_t    asInt32()     const;
-      int64_t    asInt64()     const;
-      float      asFloat()     const;
-      double     asDouble()    const;
-      QDateTime  asTimeStamp() const;
-      QDate      asDate()      const;
-      QTime      asTime()      const;
+      QVariant      asVariant()   const;
+      QByteArray    asData()      const;
+      QString       asString()    const;
+      TsSqlSmallInt asInt16()     const;
+      TsSqlInt      asInt32()     const;
+      TsSqlLargeInt asInt64()     const;
+      float         asFloat()     const;
+      double        asDouble()    const;
+      QDateTime     asTimeStamp() const;
+      QDate         asDate()      const;
+      QTime         asTime()      const;
+      template<typename T>
+      TsSqlVariant &operator=(const T &value)
+      {
+         setVariant(QVariant(value));
+         return *this;
+      }
 };
+Q_DECLARE_METATYPE(TsSqlVariant);
 
-typedef QVector<QVariant> TsSqlRow;
+typedef QVector<TsSqlVariant> TsSqlRow;
 Q_DECLARE_METATYPE(TsSqlRow);
 
 class TsSqlDatabase: public QObject
@@ -172,7 +191,7 @@ class TsSqlStatement: public QObject
       void executeWaiting(const TsSqlRow &params); // sync
       void executeWaiting(const QString &sql, const TsSqlRow &params); // sync
 
-      void setParam(int column, const QVariant &param); // sync
+      void setParam(int column, const TsSqlVariant &param); // sync
 
       QString sql();
       QString plan();

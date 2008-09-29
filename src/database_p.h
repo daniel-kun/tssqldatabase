@@ -176,7 +176,8 @@ class TsSqlDatabaseThread: public QThread
       void statementSetParam(
          StatementHandle handle,
          int column,
-         QVariant param);
+         const TsSqlVariant &param);
+
       void statementStartFetch(
          TsSqlStatementImpl *object,
          StatementHandle handle);
@@ -358,7 +359,7 @@ class TsSqlStatementImpl: public QObject
          const QString &sql, 
          const TsSqlRow &params); // async
 
-      void setParam(int column, const QVariant &param); // sync
+      void setParam(int column, const TsSqlVariant &param); // sync
 
       QString sql();
       QString plan();
@@ -439,7 +440,7 @@ class TsSqlStatementImpl: public QObject
       void statementSetParam(
          StatementHandle handle,
          int column,
-         QVariant param);
+         const TsSqlVariant &param);
 
       void statementStartFetch(
          TsSqlStatementImpl *object,

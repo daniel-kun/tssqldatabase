@@ -181,17 +181,17 @@ QString TsSqlVariant::asString() const
    return asVariant().toString();
 }
 
-int16_t TsSqlVariant::asInt16() const
+TsSqlSmallInt TsSqlVariant::asInt16() const
 {
    return asVariant().toInt();
 }
 
-int32_t TsSqlVariant::asInt32() const
+TsSqlInt TsSqlVariant::asInt32() const
 {
    return asVariant().toInt();
 }
 
-int64_t TsSqlVariant::asInt64() const
+TsSqlLargeInt TsSqlVariant::asInt64() const
 {
    return asVariant().toInt();
 }
@@ -478,7 +478,7 @@ void TsSqlStatement::executeWaiting(
    m_impl->executeWaiting(sql, params);
 }
 
-void TsSqlStatement::setParam(int column, const QVariant &param)
+void TsSqlStatement::setParam(int column, const TsSqlVariant &param)
 {
    m_impl->setParam(column, param);
 }
