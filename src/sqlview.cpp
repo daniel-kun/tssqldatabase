@@ -7,9 +7,9 @@ TsSqlTableModel::TsSqlTableModel(TsSqlStatement &fetchIds, TsSqlStatement &fetch
    m_colCount(0)
 {
    connect(&m_fetchData, SIGNAL(prepared()),        this, SLOT(dataPrepared()));
-/*   connect(&m_fetchData, SIGNAL(fetched(TsSqlRow)), this, SLOT(dataFetched(TsSqlRow)));
+/*   connect(&m_fetchData, SIGNAL(fetched(TsSqlRow)), this, SLOT(dataFetched(TsSqlRow)));*/
 
-   connect(&m_fetchIds,  SIGNAL(fetched(TsSqlRow)), this, SLOT(idFetched(TsSqlRow)));*/
+   connect(&m_fetchIds,  SIGNAL(fetched(TsSqlRow)), this, SLOT(idFetched(TsSqlRow)));
 }
 
 void TsSqlTableModel::dataPrepared()
@@ -30,8 +30,9 @@ void TsSqlTableModel::dataPrepared()
 
 void TsSqlTableModel::idFetched(TsSqlRow)
 {
-   int rows = m_rowCount;
-   beginInsertRows(QModelIndex(), rows + 1, rows + 1);
+   int rows = m_rowCount + 1;
+   beginInsertRows(QModelIndex(), rows, rows);
+   m_rowCount = rows;
    endInsertRows();
 }
 

@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include <QDebug>
 
 #include "private/ibpp/core/ibpp.h"
@@ -217,7 +219,71 @@ void setFromStatement(TsSqlVariant &variant, void *statement, int col)
    }
 }
 
-//void setStatementParam(void *statement, int column);
+void setStatementParam(const TsSqlVariant &variant, void *statement, int column)
+{
+   IBPP::Statement &st = STHANDLE(statement);
+   switch(variant.m_type)
+   {
+      case stBlob:
+         {
+            IBPP::Blob blob = IBPP::BlobFactory(st->DatabasePtr(), st->TransactionPtr());
+            QByteArray &arr = *reinterpret_cast<QByteArray*>(variant.m_data.asPointer);
+            blob->Save(std::string(arr.constData(), arr.size()));
+            st->Set(column, blob);
+         }
+         break;
+      case stDate:
+         {
+            QDate &d = *reinterpret_cast<QDate*>(variant.m_data.asPointer);
+            IBPP::Date date(d.year(), d.month(), d.day());
+            st->Set(column, date);
+         }
+         break;
+      case stTime:
+         {
+            QTime &t = *reinterpret_cast<QTime*>(variant.m_data.asPointer);
+            IBPP::Time time(t.hour(), t.minute(), t.second(), t.msec());
+            st->Set(column, time);
+         }
+         break;
+      case stTimeStamp:
+         {
+            QDateTime &dt = *reinterpret_cast<QDateTime*>(variant.m_data.asPointer);
+            IBPP::Timestamp timestamp(
+               dt.date().year(),
+               dt.date().month(),
+               dt.date().day(),
+               dt.time().hour(),
+               dt.time().minute(),
+               dt.time().second(),
+               dt.time().msec());
+            st->Set(column, timestamp);
+         }
+         break;
+      case stString:
+         st->Set(
+            column,
+            reinterpret_cast<QString*>(variant.m_data.asPointer)->toStdString());
+         break;
+      case stSmallInt:
+         st->Set(column, variant.m_data.asInt16);
+         break;
+      case stInt:
+         st->Set(column, variant.m_data.asInt32);
+         break;
+      case stLargeInt:
+         st->Set(column, variant.m_data.asInt64);
+         break;
+      case stFloat:
+         st->Set(column, variant.m_data.asFloat);
+         break;
+      case stDouble:
+         st->Set(column, variant.m_data.asDouble);
+         break;
+   default:
+      st->SetNull(column);
+   }
+}
 
 void TsSqlDatabaseThread::test()
 {
@@ -272,6 +338,16 @@ void TsSqlDatabaseThread::createDatabase(
    m_databaseHandles.push_back(handle);
    object->m_handle = handle;
    DEBUG_OUT("Database-handle " << handle << " created for object " << object);
+}
+
+void TsSqlDatabaseThread::destroyDatabase(DatabaseHandle handle)
+{
+   std::vector<DatabaseHandle>::iterator i = std::find(
+      m_databaseHandles.begin(),
+      m_databaseHandles.end(),
+      handle);
+   if (i != m_databaseHandles.end() )
+      m_databaseHandles.erase(i);
 }
 
 void TsSqlDatabaseThread::databaseOpen(TsSqlDatabaseImpl *object, DatabaseHandle handle)
@@ -409,6 +485,16 @@ void TsSqlDatabaseThread::createTransaction(
    }
 }
 
+void TsSqlDatabaseThread::destroyTransaction(TransactionHandle handle)
+{
+   std::vector<TransactionHandle>::iterator i = std::find(
+      m_transactionHandles.begin(),
+      m_transactionHandles.end(),
+      handle);
+   if (i != m_transactionHandles.end())
+      m_transactionHandles.erase(i);
+}
+
 void TsSqlDatabaseThread::transactionStart(
    TsSqlTransactionImpl *object,
    TransactionHandle handle)
@@ -516,6 +602,16 @@ void TsSqlDatabaseThread::createStatement(
    }
 }
 
+void TsSqlDatabaseThread::destroyStatement(StatementHandle handle)
+{
+   std::vector<StatementHandle>::iterator i = std::find(
+      m_statementHandles.begin(),
+      m_statementHandles.end(),
+      handle);
+   if (i != m_statementHandles.end())
+      m_statementHandles.erase(i);
+}
+
 void TsSqlDatabaseThread::statementPrepare(
    TsSqlStatementImpl *object,
    StatementHandle handle,
@@ -618,9 +714,7 @@ void TsSqlDatabaseThread::statementSetParam(
    int col,
    const TsSqlVariant &param)
 {
-   using namespace IBPP;
-   Statement &st = STHANDLE(handle);
-//   st->Execute();
+   setStatementParam(param, handle, col);
 }
 
 void TsSqlDatabaseThread::emitStatementRow(
@@ -862,6 +956,12 @@ TsSqlDatabaseImpl::TsSqlDatabaseImpl(
             QString,
             QString)), 
       Qt::BlockingQueuedConnection);
+   connect(
+      this,
+      SIGNAL(destroyHandle(DatabaseHandle)),
+      &m_thread,
+      SLOT(destroyDatabase(DatabaseHandle)),
+      Qt::BlockingQueuedConnection);
 
    emit createHandle(
          this,
@@ -1029,6 +1129,7 @@ QVector<QString> TsSqlDatabaseImpl::connectedUsers()
 
 TsSqlDatabaseImpl::~TsSqlDatabaseImpl()
 {
+   emit destroyHandle(m_handle);
    m_thread.quit();
    // Wait for the thread to gracefully finish.
    // If this doesn't happen withing 10 seconds, try to terminate it
@@ -1058,6 +1159,12 @@ TsSqlTransactionImpl::TsSqlTransactionImpl(
          TsSqlTransactionImpl *,
          DatabaseHandle,
          TsSqlTransaction::TransactionMode)),
+      Qt::BlockingQueuedConnection);
+   connect(
+      this,
+      SIGNAL(destroyTransaction(TransactionHandle)),
+      &database.m_thread,
+      SLOT(destroyTransaction(TransactionHandle)),
       Qt::BlockingQueuedConnection);
 
    emit createTransaction(
@@ -1151,6 +1258,11 @@ TsSqlTransactionImpl::TsSqlTransactionImpl(
       Qt::BlockingQueuedConnection);
 }
 
+TsSqlTransactionImpl::~TsSqlTransactionImpl()
+{
+   emit destroyTransaction(m_handle);
+}
+
 void TsSqlTransactionImpl::start()
 {
    emit transactionStart(
@@ -1241,16 +1353,52 @@ TsSqlStatementImpl::TsSqlStatementImpl(
    connectSignals(&database.m_thread);
 }
 
-void TsSqlStatementImpl::fetchDataset(const TsSqlRow &row)
+
+TsSqlStatementImpl::TsSqlStatementImpl(
+   TsSqlDatabaseImpl &database, 
+   TsSqlTransactionImpl &transaction, 
+   const QString &sql)
 {
-   emit fetched(row);
-   emit statementFetchNext(
+   DEBUG_OUT("Creating new statement");
+   connect(
       this,
-      m_handle);
+      SIGNAL(createStatement(
+         TsSqlStatementImpl*,
+         DatabaseHandle,
+         TransactionHandle,
+         QString)),
+      &database.m_thread,
+      SLOT(createStatement(
+         TsSqlStatementImpl*,
+         DatabaseHandle,
+         TransactionHandle,
+         QString)),
+      Qt::BlockingQueuedConnection);
+
+   emit createStatement(
+      this,
+      database.m_handle,
+      transaction.m_handle,
+      sql);
+   DEBUG_OUT("Statement-handle " << m_handle << " arrived for " << this);
+
+   connectSignals(&database.m_thread);
+}
+
+TsSqlStatementImpl::~TsSqlStatementImpl()
+{
+   emit destroyStatement(m_handle);
 }
 
 void TsSqlStatementImpl::connectSignals(QObject *receiver)
 {
+   connect(
+      this,
+      SIGNAL(destroyStatement(StatementHandle)),
+      receiver,
+      SLOT(destroyStatement(StatementHandle)),
+      Qt::BlockingQueuedConnection);
+
    /* asynchronous connections */
    connect(
       this,
@@ -1452,11 +1600,12 @@ void TsSqlStatementImpl::connectSignals(QObject *receiver)
       Qt::BlockingQueuedConnection);
 }
 
-TsSqlStatementImpl::TsSqlStatementImpl(
-   TsSqlDatabaseImpl &, 
-   TsSqlTransactionImpl &, 
-   const QString &)
+void TsSqlStatementImpl::fetchDataset(const TsSqlRow &row)
 {
+   emit fetched(row);
+   emit statementFetchNext(
+      this,
+      m_handle);
 }
 
 void TsSqlStatementImpl::prepare(const QString &sql)

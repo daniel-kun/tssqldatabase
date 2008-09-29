@@ -107,6 +107,7 @@ class TsSqlDatabaseThread: public QThread
          const QString &characterSet,
          const QString &role,
          const QString &createParams);
+      void destroyDatabase(DatabaseHandle handle);
       void databaseOpen(TsSqlDatabaseImpl *object, DatabaseHandle handle);
       void databaseClose(TsSqlDatabaseImpl *object, DatabaseHandle handle);
       void databaseIsOpen(
@@ -127,6 +128,7 @@ class TsSqlDatabaseThread: public QThread
          TsSqlTransactionImpl *object,
          DatabaseHandle database, 
          TsSqlTransaction::TransactionMode mode);
+      void destroyTransaction(TransactionHandle handle);
       void transactionStart(
          TsSqlTransactionImpl *object,
          TransactionHandle handle);
@@ -149,6 +151,7 @@ class TsSqlDatabaseThread: public QThread
          DatabaseHandle database, 
          TransactionHandle transaction,
          QString sql);
+      void destroyStatement(StatementHandle handle);
       void statementPrepare(
          TsSqlStatementImpl *object,
          StatementHandle handle,
@@ -244,6 +247,7 @@ class TsSqlDatabaseImpl: public QObject
          const QString &characterSet,
          const QString &role,
          const QString &createParams);
+      void destroyHandle(DatabaseHandle handle);
       void databaseOpen(TsSqlDatabaseImpl *object, DatabaseHandle handle);
       void databaseClose(TsSqlDatabaseImpl *object, DatabaseHandle handle);
       void databaseOpenWaiting(TsSqlDatabaseImpl *object, DatabaseHandle handle);
@@ -273,6 +277,7 @@ class TsSqlTransactionImpl: public QObject
       friend class TsSqlStatementImpl;
    public:
       TsSqlTransactionImpl(TsSqlDatabaseImpl &database, TsSqlTransaction::TransactionMode mode);
+      ~TsSqlTransactionImpl();
 
       void start();                  // async
       void commit();                 // async
@@ -291,6 +296,7 @@ class TsSqlTransactionImpl: public QObject
          TsSqlTransactionImpl *object,
          DatabaseHandle database, 
          TsSqlTransaction::TransactionMode mode);
+      void destroyTransaction(TransactionHandle handle);
       void transactionStart(
          TsSqlTransactionImpl *object,
          TransactionHandle handle);
@@ -341,6 +347,7 @@ class TsSqlStatementImpl: public QObject
          TsSqlDatabaseImpl &database, 
          TsSqlTransactionImpl &transaction, 
          const QString &sql);
+      ~TsSqlStatementImpl();
 
       void prepare(const QString &sql); // async
       void execute(bool startFetch);                         // async
@@ -387,6 +394,7 @@ class TsSqlStatementImpl: public QObject
          DatabaseHandle database, 
          TransactionHandle transaction,
          QString sql);
+      void destroyStatement(StatementHandle handle);
 
       void statementPrepare(
          TsSqlStatementImpl *object,

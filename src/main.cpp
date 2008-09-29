@@ -255,7 +255,7 @@ void randomizeParams(TsSqlRow &params)
    params[5] = random(0, std::pow(2.0, 15)-1);
    params[6] = random(0, std::pow(2.0, 31)-1);
    params[7] = random(0, std::pow(2.0, 63)-1);
-   params[8] = randomReal();
+   params[8] = static_cast<float>(randomReal());
    params[9] = randomReal();
 }
 
@@ -353,29 +353,86 @@ void DatabaseTest::displayError(const QString &errorMessage)
 }
 
 DataGrid::DataGrid():
+   m_dataCount(0),
    m_database(
       "",
       "melchior:/var/firebird/test.fdb",
       "sysdba",
       "5735"),
-   m_transaction(m_database, TsSqlTransaction::tmRead),
+   m_transaction(m_database),
    m_fetchIds(m_database, m_transaction),
    m_fetchData(m_database, m_transaction),
+   m_insertStatement(m_database, m_transaction),
    m_model(m_fetchIds, m_fetchData),
    m_layout(this),
+   m_lDataCount(this),
+   m_btnStart(this),
+   m_btnQuit(this),
    m_table(this)
 {
-/*   m_database.test();
-   return;*/
+   connect(&m_database,        SIGNAL(error(QString)), this, SLOT(displayError(QString)));
+   connect(&m_transaction,     SIGNAL(error(QString)), this, SLOT(displayError(QString)));
+   connect(&m_insertStatement, SIGNAL(error(QString)), this, SLOT(displayError(QString)));
+   m_layout.addWidget(&m_btnStart);
+   m_layout.addWidget(&m_btnFill);
+   m_layout.addWidget(&m_btnQuit);
+
+   m_btnStart.setText("&Start");
+   m_btnFill.setText("&Fill");
+   m_btnQuit.setText( "&Quit");
+   connect(&m_btnStart, SIGNAL(clicked()), this, SLOT(startFetch()));
+   connect(&m_btnFill,  SIGNAL(clicked()), this, SLOT(fill()));
+   connect(&m_btnQuit,  SIGNAL(clicked()), this, SLOT(close()));
+
    m_database.openWaiting();
    m_transaction.startWaiting();
 
    m_layout.addWidget(&m_table);
+   m_layout.addWidget(&m_lDataCount);
    m_table.setModel(&m_model);
    m_fetchData.prepare("select * from test2 where id=?");
-   m_fetchIds.execute("select id from test2", true);
 
    m_table.show();
+}
+
+DataGrid::~DataGrid()
+{
+   m_transaction.commit();
+}
+
+void DataGrid::startFetch()
+{
+   m_btnStart.setEnabled(false);
+   m_fetchIds.execute("select id from test2", true);
+}
+
+void DataGrid::fill()
+{
+   connect(&m_insertStatement, SIGNAL(executed()), this, SLOT(insertDataset()));
+   connect(&m_insertStatement, SIGNAL(prepared()), this, SLOT(insertDataset()));
+   m_insertStatement.prepare(
+      "insert into test2(id, field_blob, field_date, "
+      "field_time, field_timestamp, field_string, "
+      "field_smallint, field_int, field_largeint, field_float, "
+      "field_double) values (gen_id(test2_gen, 1), ?, ?, "
+      "?, ?, ?, "
+      "?, ?, ?, ?, "
+      "?)");
+}
+
+void DataGrid::displayError(const QString &error)
+{
+   QMessageBox::critical(0, "Error", error);
+}
+
+void DataGrid::insertDataset()
+{
+   TsSqlRow params;
+   randomizeParams(params);
+   m_insertStatement.execute(params);
+   m_lDataCount.setText(QString("%1 datasets inserted").arg(++m_dataCount));
+   if ((m_dataCount % 1000) == 0)
+      m_transaction.commitRetainingWaiting();
 }
 
 int main(int argc, char *argv[])

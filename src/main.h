@@ -71,17 +71,27 @@ class DatabaseTest: public QWidget
 
 class DataGrid: public QWidget
 {
+   Q_OBJECT
    private:
+      int              m_dataCount;
+
       TsSqlDatabase    m_database;
       TsSqlTransaction m_transaction;
-      TsSqlStatement   m_fetchIds, m_fetchData;
+      TsSqlStatement   m_fetchIds, m_fetchData, m_insertStatement;
       TsSqlTableModel  m_model;
 
       QVBoxLayout      m_layout;
-      QPushButton      m_btnStart, m_btnQuit;
+      QLabel           m_lDataCount;
+      QPushButton      m_btnStart, m_btnFill, m_btnQuit;
       QTableView       m_table;
    public:
       DataGrid();
+      ~DataGrid();
+   public slots:
+      void fill();
+      void insertDataset();
+      void startFetch();
+      void displayError(const QString &error);
 };
 
 #endif

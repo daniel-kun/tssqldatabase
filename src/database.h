@@ -72,6 +72,12 @@ class TsSqlVariant
       {
          setVariant(QVariant(value));
       }
+      void set(float value) // floats will not be handled by setVariant
+      {
+         setNull();
+         m_data.asFloat = value;
+         m_type = stFloat;
+      }
 
       QVariant      asVariant()   const;
       QByteArray    asData()      const;
@@ -87,7 +93,7 @@ class TsSqlVariant
       template<typename T>
       TsSqlVariant &operator=(const T &value)
       {
-         setVariant(QVariant(value));
+         set(value);
          return *this;
       }
 };
