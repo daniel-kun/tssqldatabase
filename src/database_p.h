@@ -11,7 +11,7 @@ class TsSqlBufferImpl: public QObject
    Q_OBJECT
    private:
       mutable QMutex m_mutex;
-      QList<QPair<bool, TsSqlRow> > m_rows;
+      QVector<QPair<bool, TsSqlRow> > m_rows;
       TsSqlStatement *m_data, *m_fetch;
       unsigned m_colCount;
    private slots:
@@ -36,11 +36,14 @@ class TsSqlBufferImpl: public QObject
       void setRow(unsigned index, const TsSqlRow &row);
       unsigned count() const;
       unsigned columnCount() const;
+      TsSqlStatement *dataStatement();
+      TsSqlStatement *fetchStatement();
    signals:
       void cleared();
       void rowAppended();
       void rowDeleted();
       void columnsChanged();
+      void rowFetched(TsSqlRow row);
 };
 
 // These fakes are necessary so the Qt meta-object system

@@ -78,6 +78,7 @@ void TsSqlBufferImpl::validateRow(unsigned row)
       m_data->executeWaiting();
       m_data->fetchRow(item.second);
       item.first = true;
+      emit rowFetched(item.second);
    }
 }
 
@@ -105,7 +106,7 @@ void TsSqlBufferImpl::appendRow(const TsSqlRow &row)
 void TsSqlBufferImpl::deleteRow(unsigned index)
 {
    QMutexLocker locker(&m_mutex);
-   m_rows.removeAt(index);
+   m_rows.remove(index);
    emit rowDeleted();
 }
 
@@ -140,6 +141,17 @@ unsigned TsSqlBufferImpl::columnCount() const
 {
    return m_colCount;
 }
+
+TsSqlStatement *TsSqlBufferImpl::dataStatement()
+{
+   return m_data;
+}
+
+TsSqlStatement *TsSqlBufferImpl::fetchStatement()
+{
+   return m_fetch;
+}
+
 
 #define EMIT_ASYNC(object, signal) { TsSqlThreadEmitter emitter(object); emitter.signal(); }
 #define EMIT_ERROR(object, errorMessage) {TsSqlThreadEmitter emitter(object); emitter.emitError(errorMessage); }
@@ -1018,31 +1030,34 @@ void TsSqlDatabaseThread::statementInfo(
             *result = QString::fromStdString(temp);
             break;
          case siColumnCount:
-            *result = STHANDLE(handle)->Columns();
+            {
+               int iTemp = STHANDLE(handle)->Columns();
+               *result = iTemp;
+            }
             break;
          case siColumnName:
-            *result = QString::fromAscii(STHANDLE(handle)->ColumnName(param.toInt()));
+            *result = QString::fromAscii(STHANDLE(handle)->ColumnName(param.toInt() + 1));
             break;
          case siColumnIndex:
             *result = STHANDLE(handle)->ColumnNum(param.toString().toStdString());
             break;
          case siColumnAlias:
-            *result = QString::fromAscii(STHANDLE(handle)->ColumnAlias(param.toInt()));
+            *result = QString::fromAscii(STHANDLE(handle)->ColumnAlias(param.toInt() -+1));
             break;
          case siColumnTable:
-            *result = QString::fromAscii(STHANDLE(handle)->ColumnTable(param.toInt()));
+            *result = QString::fromAscii(STHANDLE(handle)->ColumnTable(param.toInt() + 1));
             break;
          case siColumnType:
-            *result = static_cast<int>(ibppTypeToTs(STHANDLE(handle)->ColumnType(param.toInt())));
+            *result = static_cast<int>(ibppTypeToTs(STHANDLE(handle)->ColumnType(param.toInt() + 1)));
             break;
          case siColumnSubType:
-            *result = STHANDLE(handle)->ColumnSubtype(param.toInt());
+            *result = STHANDLE(handle)->ColumnSubtype(param.toInt() + 1);
             break;
          case siColumnSize:
-            *result = STHANDLE(handle)->ColumnSize(param.toInt());
+            *result = STHANDLE(handle)->ColumnSize(param.toInt() + 1);
             break;
          case siColumnScale:
-            *result = STHANDLE(handle)->ColumnScale(param.toInt());
+            *result = STHANDLE(handle)->ColumnScale(param.toInt() + 1);
             break;
          default:
             DEBUG_OUT("Unknown statement info(" << info << ") requested!");

@@ -355,10 +355,10 @@ void DatabaseTest::displayError(const QString &errorMessage)
 #define SYNC_OBJECTNAME(object) object.setObjectName(#object);
 
 DataGrid::DataGrid():
-   m_dataCount(0),
    m_database(
       "",
-      "melchior:/var/firebird/test.fdb",
+//      "melchior:/var/firebird/test.fdb",
+      "localhost:D:/Entwicklung/TreesoftOffice.org/Database/Data/Data1.fdb",
       "sysdba",
       "5735"),
    m_transaction(m_database),
@@ -371,14 +371,15 @@ DataGrid::DataGrid():
    m_lDataCount(this),
    m_btnStart(this),
    m_btnQuit(this),
-   m_table(this)
+   m_table(this),
+   m_idCount(0), 
+   m_dataCount(0)
 {
    connect(&m_database,        SIGNAL(error(QString)), this, SLOT(displayError(QString)));
    connect(&m_transaction,     SIGNAL(error(QString)), this, SLOT(displayError(QString)));
    connect(&m_insertStatement, SIGNAL(error(QString)), this, SLOT(displayError(QString)));
    connect(&m_fetchData,       SIGNAL(error(QString)), this, SLOT(displayError(QString)));
    connect(&m_fetchIds,        SIGNAL(error(QString)), this, SLOT(displayError(QString)));
-//   connect(&m_buffer,          SIGNAL(columnsChanged()),     this, SLOT(test()));
    
    m_layout.addWidget(&m_btnStart);
    m_layout.addWidget(&m_btnFill);
@@ -391,14 +392,16 @@ DataGrid::DataGrid():
    connect(&m_btnFill,  SIGNAL(clicked()), this, SLOT(fill()));
    connect(&m_btnQuit,  SIGNAL(clicked()), this, SLOT(close()));
 
+   connect(&m_buffer, SIGNAL(rowFetched(TsSqlRow)), this, SLOT(updateDataCount(TsSqlRow)));
+   connect(&m_model,  SIGNAL(rowsUpdated()),             this, SLOT(updateRowCount()));;
+
    m_database.openWaiting();
    m_transaction.startWaiting();
 
    m_layout.addWidget(&m_table);
    m_layout.addWidget(&m_lDataCount);
    m_table.setModel(&m_model);
-   m_fetchData.prepare("select * from test2 where id=?");
-   m_fetchIds.execute("select id from test2", true);
+   m_fetchData.prepare("select id, custno, name1, name2, name3, street, postcode, city, country  from add_main where id=?");
 
    m_table.show();
 }
@@ -408,10 +411,27 @@ DataGrid::~DataGrid()
    m_transaction.commit();
 }
 
+void DataGrid::updateDataCount(const TsSqlRow  &)
+{
+   m_dataCount += 1;
+   updateCountText();
+}
+
+void DataGrid::updateRowCount()
+{
+   m_idCount = m_model.rowCount(QModelIndex());
+   updateCountText();
+}
+
+void DataGrid::updateCountText()
+{
+   m_lDataCount.setText(QString("Es wurden %1 Zeilen und %2 Datensätze gelesen").arg(m_idCount).arg(m_dataCount));
+}
+
 void DataGrid::startFetch()
 {
    m_btnStart.setEnabled(false);
-   m_fetchIds.execute("select id from test2", true);
+   m_fetchIds.execute("select id from add_main", true);
 }
 
 void DataGrid::fill()

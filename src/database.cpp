@@ -94,7 +94,7 @@ void TsSqlVariant::setNull()
 
 void TsSqlVariant::setVariant(const QVariant &value)
 {
-/*   switch(m_type)
+   switch(m_type)
    {
       case stBlob:
          *reinterpret_cast<QByteArray*>(m_data.asPointer) = value.toByteArray();
@@ -126,7 +126,7 @@ void TsSqlVariant::setVariant(const QVariant &value)
       case stDouble:
          m_data.asDouble = value.toDouble();
          break;
-      default:*/
+      default:
          // If none or an incompatible type is currently set
          setNull();
          switch(value.type())
@@ -173,7 +173,7 @@ void TsSqlVariant::setVariant(const QVariant &value)
                newValue(value.toString(), stString);
                break;
          }
-//   }
+   }
 }
 
 void TsSqlVariant::set(float value)
@@ -289,10 +289,11 @@ void TsSqlBuffer::setStatements(TsSqlStatement *dataStatement, TsSqlStatement *f
 
 void TsSqlBuffer::connectSignals()
 {
-   connect(m_impl, SIGNAL(cleared()),        this, SIGNAL(cleared()));
-   connect(m_impl, SIGNAL(rowAppended()),    this, SIGNAL(rowAppended()));
-   connect(m_impl, SIGNAL(rowDeleted()),     this, SIGNAL(rowDeleted()));
-   connect(m_impl, SIGNAL(columnsChanged()), this, SIGNAL(columnsChanged()));
+   connect(m_impl, SIGNAL(cleared()),            this, SIGNAL(cleared()));
+   connect(m_impl, SIGNAL(rowAppended()),        this, SIGNAL(rowAppended()));
+   connect(m_impl, SIGNAL(rowDeleted()),         this, SIGNAL(rowDeleted()));
+   connect(m_impl, SIGNAL(columnsChanged()),     this, SIGNAL(columnsChanged()));
+   connect(m_impl, SIGNAL(rowFetched(TsSqlRow)), this, SIGNAL(rowFetched(TsSqlRow)));
 }
 
 TsSqlBuffer::~TsSqlBuffer()
@@ -338,6 +339,16 @@ unsigned TsSqlBuffer::count() const
 unsigned TsSqlBuffer::columnCount() const
 {
    return m_impl->columnCount();
+}
+
+TsSqlStatement *TsSqlBuffer::dataStatement()
+{
+   return m_impl->dataStatement();
+}
+
+TsSqlStatement *TsSqlBuffer::fetchStatement()
+{
+   return m_impl->fetchStatement();
 }
 
 /* The rest of this source-file only includes pimpl-forwards */

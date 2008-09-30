@@ -73,8 +73,6 @@ class DataGrid: public QWidget
 {
    Q_OBJECT
    private:
-      int              m_dataCount;
-
       TsSqlDatabase    m_database;
       TsSqlTransaction m_transaction;
       TsSqlStatement   m_fetchIds, m_fetchData, m_insertStatement;
@@ -85,10 +83,16 @@ class DataGrid: public QWidget
       QLabel           m_lDataCount;
       QPushButton      m_btnStart, m_btnFill, m_btnQuit;
       QTableView       m_table;
+
+      int              m_idCount, m_dataCount;
+
+      void updateCountText();
    public:
       DataGrid();
       ~DataGrid();
    public slots:
+      void updateDataCount(const TsSqlRow  &);
+      void updateRowCount();
       void test();
       void fill();
       void insertDataset();

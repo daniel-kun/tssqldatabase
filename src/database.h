@@ -113,11 +113,14 @@ class TsSqlBuffer: public QObject
       void setRow(unsigned index, const TsSqlRow &row);
       unsigned count() const;
       unsigned columnCount() const;
+      class TsSqlStatement *dataStatement();
+      class TsSqlStatement *fetchStatement();
    signals:
       void cleared();
       void rowAppended();
       void rowDeleted();
       void columnsChanged();
+      void rowFetched(TsSqlRow row);
 };
 
 class TsSqlDatabase: public QObject

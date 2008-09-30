@@ -7,18 +7,18 @@ TsSqlTableModel::TsSqlTableModel(TsSqlBuffer &buffer):
 {
    connect(&m_updateTimer, SIGNAL(timeout()), this, SLOT(updateRowCount()));
    m_updateTimer.start(500);
-//   connect(&buffer, SIGNAL(cleared()),        this, SLOT(updateRowCount()));
-//   connect(&buffer, SIGNAL(rowAppended()),    this, SLOT(updateRowCount()));
-//   connect(&buffer, SIGNAL(rowDeleted()),     this, SLOT(updateRowCount()));
-   connect(&buffer, SIGNAL(columnsChanged()), this, SLOT(updateColumnCount()));
+   connect(&buffer, SIGNAL(columnsChanged()), this, SLOT(updateColumns()));
 }
 
-void TsSqlTableModel::updateColumnCount()
+void TsSqlTableModel::updateColumns()
 {
    unsigned colCount = m_buffer.columnCount();
+   m_columnNames.resize(colCount);
+   for (int i = 0; i < colCount; ++i)
+      m_columnNames[i] = m_buffer.dataStatement()->columnName(i);
    if (colCount > m_colCount)
    {
-      beginInsertColumns(QModelIndex(), m_colCount, m_colCount + colCount);
+      beginInsertColumns(QModelIndex(), m_colCount, m_colCount + colCount - 1);
       m_colCount = colCount;
       endInsertColumns();
    }
@@ -35,7 +35,7 @@ void TsSqlTableModel::updateRowCount()
    int rowCount = m_buffer.count();
    if (rowCount > m_rowCount)
    {
-      beginInsertRows(QModelIndex(), m_rowCount, m_rowCount + rowCount);
+      beginInsertRows(QModelIndex(), m_rowCount, m_rowCount + rowCount - 1);
       m_rowCount = rowCount;
       endInsertRows();
    }
@@ -45,6 +45,7 @@ void TsSqlTableModel::updateRowCount()
       m_rowCount = rowCount;
       endRemoveRows();
    }
+   emit rowsUpdated();
 }
 
 int TsSqlTableModel::rowCount(const QModelIndex &parent) const
@@ -65,6 +66,13 @@ QVariant TsSqlTableModel::data(const QModelIndex &index, int role) const
 {
    if (role == Qt::DisplayRole)
       return m_buffer.getRow(index.row())[index.column()].asVariant();
+   return QVariant();
+}
+
+QVariant TsSqlTableModel::headerData(int section, Qt::Orientation orientation, int role) const
+{
+   if (orientation == Qt::Horizontal && role == Qt::DisplayRole)
+      return m_columnNames[section];
    return QVariant();
 }
 
